@@ -1,0 +1,185 @@
+"use client"
+import type { KeyboardEvent } from "react"
+
+import { useState, useEffect } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import type { User, Notification } from "@/types"
+import { Search, Bell, Menu, Trophy, MessageSquare } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { SearchCommand } from "@/components/features/search/search-command"
+import { api } from "@/lib/api"
+import { formatPoints } from "@/lib/utils"
+
+interface TopNavProps {
+  onMenuClick: () => void
+}
+
+export function TopNav({ onMenuClick }: TopNavProps) {
+  const router = useRouter()
+  const [user, setUser] = useState<User | null>(null)
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [searchOpen, setSearchOpen] = useState(false)
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [currentUser, userNotifications] = await Promise.all([api.getCurrentUser(), api.getNotifications()])
+        setUser(currentUser)
+        setNotifications(userNotifications)
+      } catch (error) {
+        console.error("Failed to load user data:", error)
+      }
+    }
+    loadData()
+  }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (e: Event) => {
+      const keyEvent = e as unknown as KeyboardEvent
+      if ((keyEvent.metaKey || keyEvent.ctrlKey) && keyEvent.key === "k") {
+        keyEvent.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [])
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length
+
+  const handleLogout = () => {
+    setUser(null)
+    setNotifications([])
+    router.push("/login")
+  }
+
+  return (
+    <>
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
+        <div className="flex h-16 items-center justify-between px-4 max-w-7xl mx-auto">
+          {/* Left section */}
+          <div className="flex items-center space-x-4">
+            {/* Mobile menu button */}
+            <Button variant="ghost" size="icon" className="lg:hidden" onClick={onMenuClick}>
+              <Menu className="h-5 w-5" />
+            </Button>
+
+            {/* Logo */}
+            <Link href="/" className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-educonnect-primary to-educonnect-accent rounded-lg flex items-center justify-center shadow-sm">
+                <span className="text-white font-bold text-sm">EC</span>
+              </div>
+              <span className="font-bold text-xl bg-gradient-to-r from-educonnect-primary to-educonnect-accent bg-clip-text text-transparent hidden sm:inline">
+                EduConnect
+              </span>
+            </Link>
+          </div>
+
+          {/* Center - Search */}
+          <div className="flex-1 max-w-md mx-4">
+            <Button
+              variant="outline"
+              className="w-full justify-start text-muted-foreground bg-muted/50 border-0 hover:bg-background hover:ring-2 hover:ring-educonnect-primary/20 transition-all"
+              onClick={() => setSearchOpen(true)}
+            >
+              <Search className="mr-2 h-4 w-4" />
+              <span className="hidden sm:inline">Tìm kiếm bài viết, nhóm, người dùng...</span>
+              <span className="sm:hidden">Tìm kiếm...</span>
+              <kbd className="pointer-events-none ml-auto hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
+                <span className="text-xs">⌘</span>K
+              </kbd>
+            </Button>
+          </div>
+
+          {/* Right section */}
+          <div className="flex items-center space-x-3">
+            {/* Points display */}
+            {user && (
+              <div className="hidden sm:flex items-center space-x-2 px-3 py-1.5 bg-gradient-to-r from-educonnect-primary/10 to-educonnect-accent/10 rounded-full border border-educonnect-primary/20">
+                <Trophy className="h-4 w-4 text-educonnect-primary" />
+                <span className="text-sm font-semibold text-educonnect-primary">{formatPoints(user.points)}</span>
+              </div>
+            )}
+
+            {/* Messages */}
+            <Button variant="ghost" size="icon" className="relative hover:bg-educonnect-primary/10" asChild>
+              <Link href="/messages">
+                <MessageSquare className="h-5 w-5" />
+              </Link>
+            </Button>
+
+            {/* Notifications */}
+            <Button variant="ghost" size="icon" className="relative hover:bg-educonnect-primary/10" asChild>
+              <Link href="/notifications">
+                <Bell className="h-5 w-5" />
+                {unreadCount > 0 && (
+                  <Badge
+                    variant="destructive"
+                    className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs animate-pulse"
+                  >
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </Badge>
+                )}
+              </Link>
+            </Button>
+
+            {/* User menu */}
+            {user && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="relative h-8 w-8 rounded-full hover:ring-2 hover:ring-educonnect-primary/20 transition-all"
+                  >
+                    <Avatar className="h-8 w-8 ring-2 ring-background">
+                      <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.displayName} />
+                      <AvatarFallback className="bg-gradient-to-br from-educonnect-primary to-educonnect-accent text-white">
+                        {user.displayName.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <div className="flex items-center justify-start gap-2 p-2">
+                    <div className="flex flex-col space-y-1 leading-none">
+                      <p className="font-medium">{user.displayName}</p>
+                      <p className="w-[200px] truncate text-sm text-muted-foreground">@{user.username}</p>
+                    </div>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href={`/profile/${user.id}`}>
+                      <span>Hồ sơ</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/settings">
+                      <span>Cài đặt</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600 focus:text-red-600">
+                    <span>Đăng xuất</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <SearchCommand open={searchOpen} onOpenChange={setSearchOpen} />
+    </>
+  )
+}

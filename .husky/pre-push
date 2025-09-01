@@ -1,0 +1,9 @@
+# Type check trước khi build
+echo "🔍 Type checking..."
+npm run type-check
+
+# Build để đảm bảo không có lỗi build
+echo "🏗️  Building project..."
+npm run build
+
+echo "✅ Pre-push checks passed!"
