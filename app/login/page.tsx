@@ -3,27 +3,76 @@
 import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
-import { Eye, EyeOff, Mail, Lock, ArrowRight, GraduationCap, BookOpen, Users, Trophy, Star } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Eye, EyeOff, Mail, ArrowRight, GraduationCap, BookOpen, Users, Trophy, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { authAPI, type LoginRequest } from "@/lib/auth"
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const router = useRouter()
+  const [formData, setFormData] = useState<LoginRequest>({
+    email: "",
+    password: "",
+  })
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [errors, setErrors] = useState<{ [key: string]: string }>({})
+  const [generalError, setGeneralError] = useState("")
+
+  const handleInputChange = (field: keyof LoginRequest, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: "" }))
+    }
+    if (generalError) {
+      setGeneralError("")
+    }
+  }
+
+  const validateForm = (): boolean => {
+    const newErrors: { [key: string]: string } = {}
+
+    if (!formData.email) {
+      newErrors.email = "Email là bắt buộc"
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = "Email không hợp lệ"
+    }
+
+    if (!formData.password) {
+      newErrors.password = "Mật khẩu là bắt buộc"
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
 
-    // Mock login - redirect to feed after 1 second
-    setTimeout(() => {
-      window.location.href = "/feed"
-    }, 1000)
+    if (!validateForm()) return
+
+    setLoading(true)
+    setGeneralError("")
+
+    try {
+      const result = await authAPI.login(formData)
+
+      if (result.success) {
+        router.push("/feed")
+      } else {
+        // ❌ Bất kỳ lỗi nào từ server đều hiển thị 1 thông báo duy nhất
+        setGeneralError("Email hoặc mật khẩu không đúng")
+      }
+    } catch (error) {
+      setGeneralError("Đã xảy ra lỗi, vui lòng thử lại")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -41,11 +90,7 @@ export default function LoginPage() {
               <span className="text-2xl font-bold">EduConnect</span>
             </div>
 
-            <h1 className="text-4xl font-bold mb-4 leading-tight">
-              Chào mừng
-              <br />
-              trở lại!
-            </h1>
+            <h1 className="text-4xl font-bold mb-4 leading-tight">Chào mừng trở lại!</h1>
             <p className="text-xl text-white/80 mb-8">Tiếp tục hành trình học tập của bạn cùng cộng đồng EduConnect</p>
           </div>
 
@@ -80,42 +125,11 @@ export default function LoginPage() {
               </div>
             </div>
           </div>
-
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="flex -space-x-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-pink-400 rounded-full border-2 border-white" />
-                <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-blue-400 rounded-full border-2 border-white" />
-                <div className="w-8 h-8 bg-gradient-to-br from-purple-400 to-indigo-400 rounded-full border-2 border-white" />
-              </div>
-              <div className="flex items-center gap-1">
-                <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                <span className="text-sm font-medium">4.9</span>
-              </div>
-            </div>
-            <p className="text-sm text-white/90">
-              "EduConnect đã giúp tôi kết nối với nhiều người bạn cùng chí hướng và học hỏi được rất nhiều kiến thức bổ
-              ích!"
-            </p>
-            <p className="text-xs text-white/70 mt-2">- Nguyễn Minh Anh, Sinh viên CNTT</p>
-          </div>
         </div>
       </div>
 
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white dark:bg-background">
         <div className="w-full max-w-md space-y-6">
-          <div className="text-center space-y-3 lg:hidden">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-600 to-cyan-600 rounded-2xl shadow-lg">
-              <GraduationCap className="h-8 w-8 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-cyan-600 bg-clip-text text-transparent">
-                EduConnect
-              </h1>
-              <p className="text-muted-foreground mt-2">Đăng nhập để tiếp tục học tập</p>
-            </div>
-          </div>
-
           <Card className="border-0 shadow-xl bg-white dark:bg-card">
             <CardHeader className="space-y-1 pb-6">
               <CardTitle className="text-2xl text-center">Đăng nhập</CardTitle>
@@ -129,27 +143,42 @@ export default function LoginPage() {
                     <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="email"
+                      name="email"
                       type="email"
                       placeholder="your@email.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10 h-11"
+                      value={formData.email}
+                      onChange={(e) => handleInputChange("email", e.target.value)}
+                      className={`pl-10 h-11 ${errors.email ? "border-red-500 focus:border-red-500" : ""}`}
+                      autoComplete="email"
                       required
                     />
                   </div>
+                  {errors.email && (
+                    <p className="text-sm text-red-500 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {errors.email}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="password">Mật khẩu</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="password"
+                      name="password"
                       type={showPassword ? "text" : "password"}
                       placeholder="Nhập mật khẩu"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 pr-10 h-11"
+                      value={formData.password}
+                      onChange={(e) => handleInputChange("password", e.target.value)}
+                      className={`pr-10 h-11 ${errors.password ? "border-red-500 focus:border-red-500" : ""}`}
+                      style={
+                        {
+                          WebkitTextSecurity: showPassword ? "none" : "disc",
+                          WebkitAppearance: "none",
+                        } as React.CSSProperties
+                      }
+                      autoComplete="current-password"
                       required
                     />
                     <Button
@@ -166,6 +195,12 @@ export default function LoginPage() {
                       )}
                     </Button>
                   </div>
+                  {errors.password && (
+                    <p className="text-sm text-red-500 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {errors.password}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-end text-sm pt-1">
@@ -188,6 +223,16 @@ export default function LoginPage() {
                     </>
                   )}
                 </Button>
+
+                {/* ⚠️ Cảnh báo đặt ngay dưới nút */}
+                {generalError && (
+                  <div className="mt-3 flex justify-center">
+                    <p className="text-sm text-red-500 text-center flex items-center gap-1">
+                      <AlertCircle className="h-4 w-4" />
+                      {generalError}
+                    </p>
+                  </div>
+                )}
               </form>
 
               <Separator />

@@ -134,8 +134,27 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Hide browser default password reveal button */
+  input[type="password"]::-webkit-credentials-auto-fill-button,
+  input[type="password"]::-webkit-credentials-auto-fill-button:hover,
+  input[type="password"]::-webkit-credentials-auto-fill-button:active {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    position: absolute !important;
+    right: -9999px !important;
+  }
+
+  /* Hide Firefox password reveal button */
+  input[type="password"]::-ms-reveal,
+  input[type="password"]::-ms-clear {
+    display: none !important;
   }
 }
 
@@ -144,15 +163,19 @@
   .text-educonnect-primary {
     color: var(--educonnect-primary);
   }
+
   .text-educonnect-accent {
     color: var(--educonnect-accent);
   }
+
   .text-educonnect-success {
     color: var(--educonnect-success);
   }
+
   .text-educonnect-warning {
     color: var(--educonnect-warning);
   }
+
   .text-educonnect-danger {
     color: var(--educonnect-danger);
   }
@@ -160,15 +183,19 @@
   .bg-educonnect-primary {
     background-color: var(--educonnect-primary);
   }
+
   .bg-educonnect-accent {
     background-color: var(--educonnect-accent);
   }
+
   .bg-educonnect-success {
     background-color: var(--educonnect-success);
   }
+
   .bg-educonnect-warning {
     background-color: var(--educonnect-warning);
   }
+
   .bg-educonnect-danger {
     background-color: var(--educonnect-danger);
   }
@@ -176,15 +203,19 @@
   .border-educonnect-primary {
     border-color: var(--educonnect-primary);
   }
+
   .border-educonnect-accent {
     border-color: var(--educonnect-accent);
   }
+
   .border-educonnect-success {
     border-color: var(--educonnect-success);
   }
+
   .border-educonnect-warning {
     border-color: var(--educonnect-warning);
   }
+
   .border-educonnect-danger {
     border-color: var(--educonnect-danger);
   }
