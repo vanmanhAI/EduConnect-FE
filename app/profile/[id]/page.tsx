@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
-import { Calendar, Trophy, UserPlus, UserCheck, Settings, Share2, MoreHorizontal } from "lucide-react"
+import { Calendar, Trophy, UserPlus, UserCheck, Settings, Share2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent } from "@/components/ui/card"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+
 import { AppShell } from "@/components/layout/app-shell"
 import { PostCard } from "@/components/features/posts/post-card"
 import { GroupCard } from "@/components/features/groups/group-card"
@@ -121,10 +121,15 @@ export default function ProfilePage() {
     return (
       <AppShell>
         <div className="max-w-4xl mx-auto space-y-6">
-          <div className="h-48 bg-muted rounded-lg animate-pulse" />
-          <div className="space-y-4">
-            <div className="h-8 bg-muted rounded w-1/3 animate-pulse" />
-            <div className="h-4 bg-muted rounded w-2/3 animate-pulse" />
+          <div className="relative aspect-[16/5] bg-muted rounded-lg animate-pulse" />
+          <div className="bg-background border rounded-lg -mt-8 mx-4 md:mx-0 p-4 md:p-6">
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-16 md:h-24 md:w-24 rounded-full bg-muted animate-pulse" />
+              <div className="space-y-2 flex-1">
+                <div className="h-4 w-40 bg-muted rounded animate-pulse" />
+                <div className="h-3 w-28 bg-muted rounded animate-pulse" />
+              </div>
+            </div>
           </div>
         </div>
       </AppShell>
@@ -149,24 +154,26 @@ export default function ProfilePage() {
         {/* Profile Header */}
         <div className="space-y-0">
           {/* Cover/Background */}
-          <div className="h-48 bg-gradient-to-r from-educonnect-primary/20 to-educonnect-accent/20 rounded-lg relative overflow-hidden">
+          <div className="relative aspect-[16/5] bg-gradient-to-r from-educonnect-primary/20 to-educonnect-accent/20 rounded-lg overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
           </div>
 
           {/* Profile Info */}
-          <div className="bg-background border rounded-lg -mt-6 mx-4 relative z-10 shadow-sm">
-            <div className="p-6 space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6">
-                <div className="flex flex-col sm:flex-row items-start space-y-4 sm:space-y-0 sm:space-x-4">
-                  <Avatar className="h-20 w-20 border-4 border-background shadow-lg">
-                    <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                    <AvatarFallback className="text-xl">{user.displayName.charAt(0)}</AvatarFallback>
+          <div className="bg-background border rounded-lg -mt-8 mx-4 md:mx-0 relative z-10 shadow-sm">
+            <div className="p-4 md:p-6 space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div className="flex items-start gap-4">
+                  <Avatar className="h-16 w-16 md:h-24 md:w-24 ring-2 ring-background">
+                    <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.displayName} />
+                    <AvatarFallback className="bg-gradient-to-br from-educonnect-primary to-educonnect-accent text-white">
+                      {user.displayName.charAt(0)}
+                    </AvatarFallback>
                   </Avatar>
 
-                  <div className="space-y-2 flex-1">
-                    <h1 className="text-2xl font-bold text-balance">{user.displayName}</h1>
-                    <p className="text-muted-foreground">@{user.username}</p>
-                    <div className="flex items-center space-x-1 text-sm text-muted-foreground">
+                  <div className="space-y-2 min-w-0">
+                    <h1 className="text-xl md:text-2xl font-bold truncate">{user.displayName}</h1>
+                    <p className="text-muted-foreground text-sm truncate">@{user.username}</p>
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <Calendar className="h-4 w-4" />
                       <span>Tham gia {formatDate(user.joinedAt)}</span>
                     </div>
@@ -176,17 +183,18 @@ export default function ProfilePage() {
                 {/* Actions */}
                 <div className="flex items-center gap-2 flex-wrap">
                   {isOwnProfile ? (
-                    <Button variant="outline" asChild>
+                    <Button variant="outline" size="sm" asChild aria-label="Chỉnh sửa hồ sơ">
                       <a href="/settings">
                         <Settings className="mr-2 h-4 w-4" />
-                        Chỉnh sửa hồ sơ
+                        Chỉnh sửa
                       </a>
                     </Button>
                   ) : (
                     <Button
+                      size="sm"
                       onClick={handleFollowToggle}
-                      variant={isFollowing ? "outline" : "default"}
-                      className={!isFollowing ? "bg-educonnect-primary hover:bg-educonnect-primary/90" : ""}
+                      className="min-w-[110px]"
+                      aria-label={isFollowing ? "Bỏ theo dõi" : "Theo dõi"}
                     >
                       {isFollowing ? (
                         <>
@@ -202,28 +210,19 @@ export default function ProfilePage() {
                     </Button>
                   )}
 
-                  <Button variant="outline" size="icon">
-                    <Share2 className="h-4 w-4" />
+                  <Button variant="outline" size="sm" aria-label="Chia sẻ hồ sơ">
+                    <Share2 className="mr-2 h-4 w-4" />
+                    Chia sẻ
                   </Button>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="icon">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>Sao chép liên kết</DropdownMenuItem>
-                      <DropdownMenuItem>Báo cáo người dùng</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 </div>
               </div>
 
               {/* Bio */}
               {user.bio && (
                 <div className="border-t pt-4">
-                  <p className="text-muted-foreground max-w-2xl text-pretty">{user.bio}</p>
+                  <p className="text-sm md:text-base text-muted-foreground whitespace-pre-line break-words [overflow-wrap:anywhere] line-clamp-5 md:line-clamp-none max-w-2xl">
+                    {user.bio}
+                  </p>
                 </div>
               )}
 
@@ -253,15 +252,17 @@ export default function ProfilePage() {
 
         {/* Content Tabs */}
         <div className="px-4">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full max-w-md grid-cols-4">
-              <TabsTrigger value="posts">Bài viết</TabsTrigger>
-              <TabsTrigger value="groups">Nhóm</TabsTrigger>
-              <TabsTrigger value="badges">Huy hiệu</TabsTrigger>
-              <TabsTrigger value="activity">Hoạt động</TabsTrigger>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4">
+            <TabsList className="w-full justify-start overflow-x-auto no-scrollbar">
+              <div className="inline-flex gap-2 px-1">
+                <TabsTrigger value="posts">Bài viết</TabsTrigger>
+                <TabsTrigger value="groups">Nhóm</TabsTrigger>
+                <TabsTrigger value="badges">Huy hiệu</TabsTrigger>
+                <TabsTrigger value="activity">Hoạt động</TabsTrigger>
+              </div>
             </TabsList>
 
-            <TabsContent value="posts" className="space-y-6 mt-6">
+            <TabsContent value="posts" className="space-y-6 mt-2">
               {posts.length === 0 ? (
                 <EmptyState
                   title="Chưa có bài viết nào"
@@ -278,7 +279,7 @@ export default function ProfilePage() {
                   }
                 />
               ) : (
-                <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
                   {posts.map((post) => (
                     <PostCard key={post.id} post={post} />
                   ))}
@@ -286,7 +287,7 @@ export default function ProfilePage() {
               )}
             </TabsContent>
 
-            <TabsContent value="groups" className="space-y-6 mt-6">
+            <TabsContent value="groups" className="space-y-6 mt-2">
               {groups.length === 0 ? (
                 <EmptyState
                   title="Chưa tham gia nhóm nào"
@@ -303,7 +304,7 @@ export default function ProfilePage() {
                   }
                 />
               ) : (
-                <div className="grid md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
                   {groups.map((group) => (
                     <GroupCard key={group.id} group={group} />
                   ))}
@@ -311,7 +312,7 @@ export default function ProfilePage() {
               )}
             </TabsContent>
 
-            <TabsContent value="badges" className="space-y-6 mt-6">
+            <TabsContent value="badges" className="space-y-6 mt-2">
               {badges.length === 0 ? (
                 <EmptyState
                   title="Chưa có huy hiệu nào"
@@ -320,7 +321,7 @@ export default function ProfilePage() {
                   }
                 />
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 md:gap-6">
                   {badges.map((badge) => (
                     <Card key={badge.id} className="text-center p-4 hover:shadow-md transition-shadow">
                       <CardContent className="space-y-2">

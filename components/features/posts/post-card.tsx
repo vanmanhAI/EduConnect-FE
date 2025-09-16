@@ -70,12 +70,12 @@ export function PostCard({ post, showGroup = true, compact = false }: PostCardPr
               <AvatarFallback>{post.author.displayName.charAt(0)}</AvatarFallback>
             </Avatar>
             <div>
-              <div className="flex items-center space-x-2">
-                <Link href={`/profile/${post.author.id}`} className="font-medium hover:underline">
+              <div className="flex flex-wrap items-center gap-x-2">
+                <Link href={`/profile/${post.author.id}`} className="font-medium hover:underline whitespace-nowrap">
                   {post.author.displayName}
                 </Link>
                 {showGroup && post.group && (
-                  <>
+                  <div className="flex items-center gap-1 basis-full sm:basis-auto text-sm">
                     <span className="text-muted-foreground">trong</span>
                     <Link
                       href={`/groups/${post.group.id}`}
@@ -83,7 +83,7 @@ export function PostCard({ post, showGroup = true, compact = false }: PostCardPr
                     >
                       {post.group.name}
                     </Link>
-                  </>
+                  </div>
                 )}
               </div>
               <p className="text-sm text-muted-foreground">{formatDate(post.createdAt)}</p>
@@ -110,7 +110,9 @@ export function PostCard({ post, showGroup = true, compact = false }: PostCardPr
       <CardContent className="space-y-4">
         <div>
           <Link href={`/posts/${post.id}`}>
-            <h3 className="text-lg font-semibold hover:text-educonnect-primary transition-colors mb-2">{post.title}</h3>
+            <h3 className="text-lg font-semibold hover:text-educonnect-primary transition-colors mb-2 whitespace-normal break-normal">
+              {post.title}
+            </h3>
           </Link>
 
           <div className="prose prose-sm max-w-none text-muted-foreground">
