@@ -3,39 +3,121 @@
 import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
-import { Eye, EyeOff, Mail, Lock, User, ArrowRight, GraduationCap, BookOpen, Users, Trophy } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Eye, EyeOff, Mail, User, ArrowRight, GraduationCap, BookOpen, Users, Trophy, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { authAPI, type RegisterRequest, type AuthResult } from "@/lib/auth"
 
 export default function RegisterPage() {
-  const [formData, setFormData] = useState({
+  const router = useRouter()
+  const [formData, setFormData] = useState<RegisterRequest>({
     displayName: "",
     username: "",
     email: "",
     password: "",
-    confirmPassword: "",
   })
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [agreeToTerms, setAgreeToTerms] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [errors, setErrors] = useState<{ [key: string]: string }>({})
+  const [generalError, setGeneralError] = useState("")
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: keyof RegisterRequest, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+    // Clear field error when user starts typing
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: "" }))
+    }
+    if (generalError) {
+      setGeneralError("")
+    }
+  }
+
+  const handleConfirmPasswordChange = (value: string) => {
+    setConfirmPassword(value)
+    // Clear confirm password error when user starts typing
+    if (errors.confirmPassword) {
+      setErrors((prev) => ({ ...prev, confirmPassword: "" }))
+    }
+    if (generalError) {
+      setGeneralError("")
+    }
+  }
+
+  const validateForm = (): boolean => {
+    const newErrors: { [key: string]: string } = {}
+
+    if (!formData.displayName) {
+      newErrors.displayName = "Tên hiển thị là bắt buộc"
+    }
+
+    if (!formData.username) {
+      newErrors.username = "Tên người dùng là bắt buộc"
+    } else if (formData.username.length < 3) {
+      newErrors.username = "Tên người dùng phải có ít nhất 3 ký tự"
+    }
+
+    if (!formData.email) {
+      newErrors.email = "Email là bắt buộc"
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = "Email không hợp lệ"
+    }
+
+    if (!formData.password) {
+      newErrors.password = "Mật khẩu là bắt buộc"
+    } else if (formData.password.length < 8) {
+      newErrors.password = "Mật khẩu phải có ít nhất 8 ký tự"
+    }
+
+    if (!confirmPassword) {
+      newErrors.confirmPassword = "Xác nhận mật khẩu là bắt buộc"
+    } else if (formData.password !== confirmPassword) {
+      newErrors.confirmPassword = "Mật khẩu xác nhận không khớp"
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!agreeToTerms) return
+
+    if (!validateForm()) {
+      return
+    }
 
     setLoading(true)
-    setTimeout(() => {
-      window.location.href = "/feed"
-    }, 1000)
+    setGeneralError("")
+
+    try {
+      const result = await authAPI.register(formData)
+
+      if (result.success) {
+        // Redirect to feed on success
+        router.push("/feed")
+      } else {
+        // Handle errors
+        if ("errors" in result && result.errors) {
+          const fieldErrors: { [key: string]: string } = {}
+          result.errors.forEach((error: { field: string; message: string }) => {
+            fieldErrors[error.field] = error.message
+          })
+          setErrors(fieldErrors)
+        } else {
+          setGeneralError(result.message)
+        }
+      }
+    } catch (error) {
+      setGeneralError("Đã xảy ra lỗi, vui lòng thử lại")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const isFormValid =
@@ -43,9 +125,8 @@ export default function RegisterPage() {
     formData.username &&
     formData.email &&
     formData.password &&
-    formData.confirmPassword &&
-    formData.password === formData.confirmPassword &&
-    agreeToTerms
+    confirmPassword &&
+    formData.password === confirmPassword
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-cyan-900 flex">
@@ -126,6 +207,13 @@ export default function RegisterPage() {
               <CardDescription className="text-center">Tham gia cộng đồng học tập EduConnect</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
+              {generalError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{generalError}</AlertDescription>
+                </Alert>
+              )}
+
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2">
@@ -134,25 +222,41 @@ export default function RegisterPage() {
                       <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         id="displayName"
-                        placeholder="Nguyễn Văn A"
+                        name="displayName"
+                        placeholder=""
                         value={formData.displayName}
                         onChange={(e) => handleInputChange("displayName", e.target.value)}
-                        className="pl-10 h-11"
+                        className={`pl-10 h-11 ${errors.displayName ? "border-red-500 focus:border-red-500" : ""}`}
+                        autoComplete="name"
                         required
                       />
                     </div>
+                    {errors.displayName && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {errors.displayName}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="username">Tên người dùng</Label>
                     <Input
                       id="username"
-                      placeholder="nguyenvana"
+                      name="username"
+                      placeholder=""
                       value={formData.username}
                       onChange={(e) => handleInputChange("username", e.target.value)}
-                      className="h-11"
+                      className={`h-11 ${errors.username ? "border-red-500 focus:border-red-500" : ""}`}
+                      autoComplete="username"
                       required
                     />
+                    {errors.username && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {errors.username}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -161,27 +265,42 @@ export default function RegisterPage() {
                       <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         id="email"
+                        name="email"
                         type="email"
                         placeholder="your@email.com"
                         value={formData.email}
                         onChange={(e) => handleInputChange("email", e.target.value)}
-                        className="pl-10 h-11"
+                        className={`pl-10 h-11 ${errors.email ? "border-red-500 focus:border-red-500" : ""}`}
+                        autoComplete="email"
                         required
                       />
                     </div>
+                    {errors.email && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {errors.email}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="password">Mật khẩu</Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         id="password"
+                        name="password"
                         type={showPassword ? "text" : "password"}
                         placeholder="Tối thiểu 8 ký tự"
                         value={formData.password}
                         onChange={(e) => handleInputChange("password", e.target.value)}
-                        className="pl-10 pr-10 h-11"
+                        className={`pr-10 h-11 [&::-webkit-credentials-auto-fill-button]:hidden [&::-webkit-credentials-auto-fill-button]:appearance-none ${errors.password ? "border-red-500 focus:border-red-500" : ""}`}
+                        style={
+                          {
+                            WebkitTextSecurity: showPassword ? "none" : "disc",
+                            WebkitAppearance: "none",
+                          } as React.CSSProperties
+                        }
+                        autoComplete="new-password"
                         required
                       />
                       <Button
@@ -198,19 +317,32 @@ export default function RegisterPage() {
                         )}
                       </Button>
                     </div>
+                    {errors.password && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {errors.password}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="confirmPassword">Xác nhận mật khẩu</Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         id="confirmPassword"
+                        name="confirmPassword"
                         type={showConfirmPassword ? "text" : "password"}
                         placeholder="Nhập lại mật khẩu"
-                        value={formData.confirmPassword}
-                        onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
-                        className="pl-10 pr-10 h-11"
+                        value={confirmPassword}
+                        onChange={(e) => handleConfirmPasswordChange(e.target.value)}
+                        className={`pr-10 h-11 [&::-webkit-credentials-auto-fill-button]:hidden [&::-webkit-credentials-auto-fill-button]:appearance-none ${errors.confirmPassword ? "border-red-500 focus:border-red-500" : ""}`}
+                        style={
+                          {
+                            WebkitTextSecurity: showConfirmPassword ? "none" : "disc",
+                            WebkitAppearance: "none",
+                          } as React.CSSProperties
+                        }
+                        autoComplete="new-password"
                         required
                       />
                       <Button
@@ -227,28 +359,12 @@ export default function RegisterPage() {
                         )}
                       </Button>
                     </div>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-3 pt-2">
-                  <Checkbox
-                    id="terms"
-                    checked={agreeToTerms}
-                    onCheckedChange={(checked) => setAgreeToTerms(checked as boolean)}
-                    className="mt-1 flex-shrink-0"
-                  />
-                  <div className="flex-1">
-                    <Label htmlFor="terms" className="text-sm leading-relaxed cursor-pointer">
-                      Tôi đồng ý với{" "}
-                      <Link href="/terms" className="text-indigo-600 hover:underline font-medium">
-                        Điều khoản sử dụng
-                      </Link>{" "}
-                      và{" "}
-                      <Link href="/privacy" className="text-indigo-600 hover:underline font-medium">
-                        Chính sách bảo mật
-                      </Link>{" "}
-                      của EduConnect
-                    </Label>
+                    {errors.confirmPassword && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {errors.confirmPassword}
+                      </p>
+                    )}
                   </div>
                 </div>
 
