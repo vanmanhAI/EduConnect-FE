@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Camera, Save, Bell, Shield, Globe, User, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,8 +13,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { AppShell } from "@/components/layout/app-shell"
+import { useToast } from "@/hooks/use-toast"
 
 export default function SettingsPage() {
+  const { toast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [profile, setProfile] = useState({
     displayName: "Nguyễn Văn A",
     username: "nguyenvana",
@@ -38,28 +41,64 @@ export default function SettingsPage() {
 
   const [loading, setLoading] = useState(false)
 
+  const handlePickAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const allowed = ["image/jpeg", "image/png", "image/webp"]
+    if (!allowed.includes(file.type)) {
+      toast({ title: "Định dạng không hỗ trợ", description: "Chỉ JPG, PNG, WEBP", variant: "destructive" })
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "Tệp quá lớn", description: "Giới hạn 5MB", variant: "destructive" })
+      return
+    }
+    try {
+      const objectUrl = URL.createObjectURL(file)
+      setProfile((p) => ({ ...p, avatar: objectUrl }))
+      toast({ title: "Đã cập nhật ảnh đại diện", description: file.name })
+    } catch (err) {
+      toast({ title: "Tải lên thất bại", description: "Vui lòng thử lại.", variant: "destructive" })
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
+
   const handleSaveProfile = async () => {
     setLoading(true)
-    // Mock save
-    setTimeout(() => {
+    try {
+      await new Promise((r) => setTimeout(r, 800))
+      toast({ title: "Đã lưu thay đổi hồ sơ" })
+    } catch (e) {
+      toast({ title: "Lưu thất bại", description: "Vui lòng thử lại.", variant: "destructive" })
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
   }
 
   const handleSaveNotifications = async () => {
     setLoading(true)
-    // Mock save
-    setTimeout(() => {
+    try {
+      await new Promise((r) => setTimeout(r, 600))
+      toast({ title: "Đã lưu cài đặt thông báo" })
+    } catch (e) {
+      toast({ title: "Lưu thất bại", description: "Vui lòng thử lại.", variant: "destructive" })
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
   }
 
   const handleSavePrivacy = async () => {
     setLoading(true)
-    // Mock save
-    setTimeout(() => {
+    try {
+      await new Promise((r) => setTimeout(r, 600))
+      toast({ title: "Đã lưu cài đặt riêng tư" })
+    } catch (e) {
+      toast({ title: "Lưu thất bại", description: "Vui lòng thử lại.", variant: "destructive" })
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
   }
 
   return (
@@ -71,7 +110,7 @@ export default function SettingsPage() {
         </div>
 
         <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-4">
+          <TabsList className="grid w-full max-w-md grid-cols-4 sticky top-0 z-10 bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/60">
             <TabsTrigger value="profile">Hồ sơ</TabsTrigger>
             <TabsTrigger value="notifications">Thông báo</TabsTrigger>
             <TabsTrigger value="privacy">Riêng tư</TabsTrigger>
@@ -79,15 +118,15 @@ export default function SettingsPage() {
           </TabsList>
 
           <TabsContent value="profile" className="space-y-6">
-            <Card>
-              <CardHeader>
+            <Card className="border-none shadow-none">
+              <CardHeader className="px-0 pt-0">
                 <CardTitle className="flex items-center gap-2">
                   <User className="h-5 w-5" />
                   Thông tin cá nhân
                 </CardTitle>
                 <CardDescription>Cập nhật thông tin hồ sơ của bạn</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4 px-0">
                 {/* Avatar */}
                 <div className="flex items-center gap-4">
                   <Avatar className="h-20 w-20">
@@ -95,17 +134,24 @@ export default function SettingsPage() {
                     <AvatarFallback className="text-xl">{profile.displayName.charAt(0)}</AvatarFallback>
                   </Avatar>
                   <div className="space-y-2">
-                    <Button variant="outline" size="sm">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handlePickAvatar}
+                    />
+                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
                       <Camera className="mr-2 h-4 w-4" />
                       Thay đổi ảnh đại diện
                     </Button>
-                    <p className="text-xs text-muted-foreground">JPG, PNG tối đa 2MB</p>
+                    <p className="text-xs text-muted-foreground">JPG, PNG, WEBP tối đa 5MB</p>
                   </div>
                 </div>
 
                 <Separator />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="displayName">Tên hiển thị</Label>
                     <Input
@@ -159,15 +205,15 @@ export default function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="notifications" className="space-y-6">
-            <Card>
-              <CardHeader>
+            <Card className="border-none shadow-none">
+              <CardHeader className="px-0">
                 <CardTitle className="flex items-center gap-2">
                   <Bell className="h-5 w-5" />
                   Cài đặt thông báo
                 </CardTitle>
                 <CardDescription>Quản lý cách bạn nhận thông báo</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4 px-0">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
@@ -233,15 +279,15 @@ export default function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="privacy" className="space-y-6">
-            <Card>
-              <CardHeader>
+            <Card className="border-none shadow-none">
+              <CardHeader className="px-0">
                 <CardTitle className="flex items-center gap-2">
                   <Shield className="h-5 w-5" />
                   Cài đặt riêng tư
                 </CardTitle>
                 <CardDescription>Kiểm soát ai có thể xem thông tin của bạn</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4 px-0">
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label>Hiển thị hồ sơ</Label>
