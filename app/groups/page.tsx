@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Filter, Plus } from "lucide-react"
+import { Search, Filter, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { AppShell } from "@/components/layout/app-shell"
@@ -22,6 +23,8 @@ export default function GroupsPage() {
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [activeTab, setActiveTab] = useState("all")
+  const [isScrolled, setIsScrolled] = useState(false)
+  const [selectedFilter, setSelectedFilter] = useState<string>("all")
 
   const popularCategories = [
     "javascript",
@@ -32,6 +35,16 @@ export default function GroupsPage() {
     "startup",
     "career",
     "freelance",
+  ]
+
+  const filterOptions = [
+    { value: "all", label: "Tất cả nhóm" },
+    { value: "public", label: "Nhóm công khai" },
+    { value: "private", label: "Nhóm riêng tư" },
+    { value: "low-members", label: "Ít thành viên (< 50)" },
+    { value: "high-members", label: "Nhiều thành viên (≥ 50)" },
+    { value: "recent", label: "Mới tạo" },
+    { value: "popular", label: "Phổ biến" },
   ]
 
   useEffect(() => {
@@ -52,24 +65,62 @@ export default function GroupsPage() {
     loadGroups()
   }, [])
 
-  const debouncedSearch = debounce((query: string) => {
-    if (!query.trim()) {
-      setFilteredGroups(groups)
-      return
+  const applyFiltersAndSearch = debounce((query: string, filter: string) => {
+    let filtered = [...groups]
+
+    // Apply search filter
+    if (query.trim()) {
+      filtered = filtered.filter(
+        (group) =>
+          group.name.toLowerCase().includes(query.toLowerCase()) ||
+          group.description.toLowerCase().includes(query.toLowerCase()) ||
+          group.tags.some((tag) => tag.toLowerCase().includes(query.toLowerCase()))
+      )
     }
 
-    const filtered = groups.filter(
-      (group) =>
-        group.name.toLowerCase().includes(query.toLowerCase()) ||
-        group.description.toLowerCase().includes(query.toLowerCase()) ||
-        group.tags.some((tag) => tag.toLowerCase().includes(query.toLowerCase()))
-    )
+    // Apply additional filters
+    switch (filter) {
+      case "public":
+        filtered = filtered.filter((group) => !group.isPrivate)
+        break
+      case "private":
+        filtered = filtered.filter((group) => group.isPrivate)
+        break
+      case "low-members":
+        filtered = filtered.filter((group) => group.memberCount < 50)
+        break
+      case "high-members":
+        filtered = filtered.filter((group) => group.memberCount >= 50)
+        break
+      case "recent":
+        filtered = filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        break
+      case "popular":
+        filtered = filtered.sort((a, b) => b.memberCount - a.memberCount)
+        break
+      case "all":
+      default:
+        // No additional filtering
+        break
+    }
+
     setFilteredGroups(filtered)
   }, 300)
 
   useEffect(() => {
-    debouncedSearch(searchQuery)
-  }, [searchQuery, groups, debouncedSearch])
+    applyFiltersAndSearch(searchQuery, selectedFilter)
+  }, [searchQuery, selectedFilter, groups, applyFiltersAndSearch])
+
+  // Handle scroll for sticky search bar
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollPosition = window.scrollY
+      setIsScrolled(scrollPosition > 100)
+    }
+
+    window.addEventListener("scroll", handleScroll)
+    return () => window.removeEventListener("scroll", handleScroll)
+  }, [])
 
   const handleRetry = () => {
     setError(null)
@@ -93,10 +144,24 @@ export default function GroupsPage() {
       case "joined":
         return filteredGroups.filter((group) => group.joinStatus === "joined")
       case "popular":
-        return [...filteredGroups].sort((a, b) => b.memberCount - a.memberCount)
+        // If popular filter is not already applied, sort by member count
+        if (selectedFilter !== "popular") {
+          return [...filteredGroups].sort((a, b) => b.memberCount - a.memberCount)
+        }
+        return filteredGroups
       default:
         return filteredGroups
     }
+  }
+
+  const handleClearFilter = () => {
+    setSelectedFilter("all")
+    setSearchQuery("")
+  }
+
+  const getActiveFilterLabel = () => {
+    const filter = filterOptions.find((f) => f.value === selectedFilter)
+    return filter ? filter.label : "Tất cả nhóm"
   }
 
   const rightSidebarContent = (
@@ -147,21 +212,65 @@ export default function GroupsPage() {
           </Button>
         </div>
 
-        {/* Search and Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Tìm kiếm nhóm theo tên, mô tả hoặc thẻ..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+        {/* Search and Filters - Sticky */}
+        <div
+          className={`sticky top-16 z-20 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 border-b transition-all duration-200 -mx-4 px-4 py-4 ${
+            isScrolled ? "border-border shadow-sm" : "border-transparent"
+          }`}
+        >
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Input
+                placeholder="Tìm kiếm nhóm theo tên, mô tả hoặc thẻ..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Select value={selectedFilter} onValueChange={setSelectedFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <Filter className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Bộ lọc" />
+                </SelectTrigger>
+                <SelectContent>
+                  {filterOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {(selectedFilter !== "all" || searchQuery.trim()) && (
+                <Button variant="outline" size="sm" onClick={handleClearFilter} className="px-3" title="Xóa bộ lọc">
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
-          <Button variant="outline">
-            <Filter className="mr-2 h-4 w-4" />
-            Bộ lọc
-          </Button>
+
+          {/* Active Filter Indicator */}
+          {(selectedFilter !== "all" || searchQuery.trim()) && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>Đang lọc:</span>
+              {searchQuery.trim() && (
+                <Badge variant="secondary" className="gap-1">
+                  Tìm kiếm: "{searchQuery}"
+                  <X className="h-3 w-3 cursor-pointer hover:text-foreground" onClick={() => setSearchQuery("")} />
+                </Badge>
+              )}
+              {selectedFilter !== "all" && (
+                <Badge variant="secondary" className="gap-1">
+                  {getActiveFilterLabel()}
+                  <X
+                    className="h-3 w-3 cursor-pointer hover:text-foreground"
+                    onClick={() => setSelectedFilter("all")}
+                  />
+                </Badge>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Tabs */}
@@ -174,7 +283,7 @@ export default function GroupsPage() {
 
           <TabsContent value={activeTab} className="mt-6">
             {loading && (
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[...Array(6)].map((_, i) => (
                   <GroupSkeleton key={i} />
                 ))}
@@ -213,7 +322,7 @@ export default function GroupsPage() {
             )}
 
             {!loading && !error && getGroupsByTab().length > 0 && (
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {getGroupsByTab().map((group) => (
                   <GroupCard key={group.id} group={group} />
                 ))}
