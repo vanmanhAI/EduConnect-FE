@@ -1,5 +1,7 @@
 "use client"
 
+import type { LoginResponse, RegisterResponse, AuthData } from "@/types"
+
 // Types for authentication
 export interface LoginRequest {
   email: string
@@ -305,23 +307,39 @@ export const realAuthAPI = {
         body: JSON.stringify(credentials),
       })
 
-      const data = await response.json()
+      const data: LoginResponse = await response.json()
 
-      if (response.ok) {
+      if (response.ok && data.success) {
         // Backend returns success with user data and tokens
-        if (data.access_token && data.user) {
+        if (data.data && data.data.access_token && data.data.user) {
+          // Map backend user data to frontend format
+          const frontendUser = {
+            id: crypto.randomUUID(), // Generate ID since backend doesn't provide it
+            displayName: data.data.user.displayName,
+            username: data.data.user.username,
+            email: credentials.email, // Use email from request since backend doesn't return it
+            avatar: data.data.user.avatar,
+            isOnline: data.data.user.isOnline,
+          }
+
           tokenManager.saveAuthData(
-            data.access_token,
+            data.data.access_token,
             "", // No refresh token in this response
-            data.user
+            frontendUser
           )
         }
         return {
           success: true,
-          message: "Đăng nhập thành công",
+          message: data.message || "Đăng nhập thành công",
           data: {
-            user: data.user,
-            token: data.access_token,
+            user: {
+              id: crypto.randomUUID(),
+              displayName: data.data?.user.displayName || "",
+              username: data.data?.user.username || "",
+              email: credentials.email,
+              avatar: data.data?.user.avatar || undefined,
+            },
+            token: data.data?.access_token || "",
             refreshToken: "",
           },
         }
@@ -330,7 +348,7 @@ export const realAuthAPI = {
         return {
           success: false,
           message: data.message || "Đăng nhập thất bại",
-          errors: data.errors || [],
+          errors: [],
         }
       }
     } catch (error) {
@@ -352,23 +370,39 @@ export const realAuthAPI = {
         body: JSON.stringify(userData),
       })
 
-      const data = await response.json()
+      const data: RegisterResponse = await response.json()
 
-      if (response.ok) {
+      if (response.ok && data.success) {
         // Backend returns success with user data and tokens
-        if (data.access_token && data.user) {
+        if (data.data && data.data.access_token && data.data.user) {
+          // Map backend user data to frontend format
+          const frontendUser = {
+            id: crypto.randomUUID(), // Generate ID since backend doesn't provide it
+            displayName: data.data.user.displayName,
+            username: data.data.user.username,
+            email: userData.email, // Use email from request since backend doesn't return it
+            avatar: data.data.user.avatar,
+            isOnline: data.data.user.isOnline,
+          }
+
           tokenManager.saveAuthData(
-            data.access_token,
+            data.data.access_token,
             "", // No refresh token in this response
-            data.user
+            frontendUser
           )
         }
         return {
           success: true,
-          message: "Đăng ký thành công",
+          message: data.message || "Đăng ký thành công",
           data: {
-            user: data.user,
-            token: data.access_token,
+            user: {
+              id: crypto.randomUUID(),
+              displayName: data.data?.user.displayName || "",
+              username: data.data?.user.username || "",
+              email: userData.email,
+              avatar: data.data?.user.avatar || undefined,
+            },
+            token: data.data?.access_token || "",
             refreshToken: "",
           },
         }
@@ -377,7 +411,7 @@ export const realAuthAPI = {
         return {
           success: false,
           message: data.message || "Đăng ký thất bại",
-          errors: data.errors || [],
+          errors: [],
         }
       }
     } catch (error) {

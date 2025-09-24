@@ -99,21 +99,15 @@ export default function RegisterPage() {
       const result = await authAPI.register(formData)
 
       if (result.success) {
+        console.log("Registration successful:", result)
         // Redirect to feed on success
         router.push("/feed")
       } else {
-        // Handle errors
-        if ("errors" in result && result.errors) {
-          const fieldErrors: { [key: string]: string } = {}
-          result.errors.forEach((error: { field: string; message: string }) => {
-            fieldErrors[error.field] = error.message
-          })
-          setErrors(fieldErrors)
-        } else {
-          setGeneralError(result.message)
-        }
+        // Handle errors from the new response format
+        setGeneralError(result.message || "Đã xảy ra lỗi khi đăng ký")
       }
     } catch (error) {
+      console.error("Register error:", error)
       setGeneralError("Đã xảy ra lỗi, vui lòng thử lại")
     } finally {
       setLoading(false)

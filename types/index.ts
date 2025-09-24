@@ -174,3 +174,24 @@ export interface SearchResult {
   groups: Group[]
   users: User[]
 }
+
+// API Response types for authentication
+export interface ApiResponse<T = any> {
+  statusCode: number
+  success: boolean
+  message: string
+  data?: T
+}
+
+export interface AuthData {
+  access_token: string
+  user: {
+    username: string
+    displayName: string
+    avatar: string | null
+    isOnline: boolean
+  }
+}
+
+export interface LoginResponse extends ApiResponse<AuthData> {}
+export interface RegisterResponse extends ApiResponse<AuthData> {}
