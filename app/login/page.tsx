@@ -63,12 +63,14 @@ export default function LoginPage() {
       const result = await authAPI.login(formData)
 
       if (result.success) {
+        console.log("Login successful:", result)
         router.push("/feed")
       } else {
-        // ❌ Bất kỳ lỗi nào từ server đều hiển thị 1 thông báo duy nhất
-        setGeneralError("Email hoặc mật khẩu không đúng")
+        // Handle errors from the new response format
+        setGeneralError(result.message || "Email hoặc mật khẩu không đúng")
       }
     } catch (error) {
+      console.error("Login error:", error)
       setGeneralError("Đã xảy ra lỗi, vui lòng thử lại")
     } finally {
       setLoading(false)
