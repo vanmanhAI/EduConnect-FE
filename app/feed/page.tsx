@@ -93,7 +93,7 @@ export default function FeedPage() {
 
   return (
     <AppShell rightSidebarContent={rightSidebarContent}>
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto space-y-6 px-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -110,7 +110,7 @@ export default function FeedPage() {
 
         {/* Filters */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between px-0">
             <TabsList className="grid w-full max-w-md grid-cols-3">
               <TabsTrigger value="all">Tất cả</TabsTrigger>
               <TabsTrigger value="following">Đang theo dõi</TabsTrigger>
