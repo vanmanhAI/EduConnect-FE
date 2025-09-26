@@ -186,7 +186,7 @@ export default function ProfilePage() {
                     <Button variant="outline" size="sm" asChild aria-label="Chỉnh sửa hồ sơ">
                       <a href="/settings">
                         <Settings className="mr-2 h-4 w-4" />
-                        Chỉnh sửa
+                        Chỉnh sửa m
                       </a>
                     </Button>
                   ) : (

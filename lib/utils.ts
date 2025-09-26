@@ -58,3 +58,13 @@ export function debounce<T extends (...args: any[]) => any>(func: T, wait: numbe
     timeout = setTimeout(() => func(...args), wait)
   }
 }
+
+// Parse query params for groups search/filter/pagination from URLSearchParams
+export function parseGroupsQueryParams(params: URLSearchParams) {
+  const q = params.get("q") || ""
+  const filter = params.get("filter") || "all"
+  const tab = params.get("tab") || "all"
+  const pageParam = Number(params.get("page") || "1")
+  const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1
+  return { q, filter, tab, page }
+}

@@ -13,6 +13,7 @@ import type {
   Notification,
   SearchResult,
 } from "@/types"
+import { tokenManager } from "@/lib/auth"
 
 // Simulate API latency
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -285,6 +286,7 @@ const mockChatMessages: { [threadId: string]: ChatMessage[] } = {
 }
 
 // API functions
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://educonnect-be-wx8t.onrender.com/api/v1"
 export const api = {
   // Users
   async getCurrentUser(): Promise<User> {
@@ -314,6 +316,90 @@ export const api = {
   async getGroups(): Promise<Group[]> {
     await delay(500)
     return mockGroups
+  },
+
+  async createGroup(payload: { name: string; description?: string; privacy?: "public" | "private" }): Promise<Group> {
+    const token = tokenManager.getToken()
+    const res = await fetch(`${API_BASE}/groups`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error((data && (data.message || data.error)) || "Tạo nhóm thất bại")
+    }
+
+    // Chuẩn hóa dữ liệu trả về
+    const group: Group = (data?.data || data) as Group
+    return group
+  },
+
+  // New: Search/Filter groups via backend (with graceful fallback to mock)
+  async searchGroups(params: {
+    q?: string
+    filter?: string
+    page?: number
+    limit?: number
+    sort?: string
+  }): Promise<{ items: Group[]; page: number; pageSize: number; total: number }> {
+    const { q = "", filter = "all", page = 1, limit = 12 } = params
+
+    // Try real backend first
+    try {
+      const url = new URL(`${API_BASE}/groups/search`)
+      if (q) {
+        url.searchParams.set("q", q)
+        // Đồng thời truyền name để BE có thể match theo tên nếu hỗ trợ
+        url.searchParams.set("name", q)
+      }
+      url.searchParams.set("page", String(page))
+      url.searchParams.set("limit", String(limit))
+      // If backend supports sort/filter, pass through conservatively
+      if (filter === "public") url.searchParams.set("privacy", "public")
+      if (filter === "private") url.searchParams.set("privacy", "private")
+
+      const token = tokenManager.getToken()
+      const res = await fetch(url.toString(), {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        cache: "no-store",
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error((data && (data.message || data.error)) || "Search groups failed")
+
+      // Accept multiple possible shapes: data.items | items | results
+      const items: Group[] = (data?.data?.items || data?.items || data?.results || []) as Group[]
+      const total: number = (data?.data?.total || data?.total || items.length) as number
+      return { items, page, pageSize: limit, total }
+    } catch (e) {
+      // Fallback to mock filtering so UI still works offline
+      let items = [...mockGroups]
+      if (q.trim()) {
+        items = items.filter(
+          (g) =>
+            g.name.toLowerCase().includes(q.toLowerCase()) ||
+            g.description.toLowerCase().includes(q.toLowerCase()) ||
+            g.tags.some((t) => t.toLowerCase().includes(q.toLowerCase()))
+        )
+      }
+      if (filter === "public") items = items.filter((g) => !g.isPrivate)
+      if (filter === "private") items = items.filter((g) => g.isPrivate)
+      if (filter === "recent") items = items.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      if (filter === "popular") items = items.sort((a, b) => b.memberCount - a.memberCount)
+      const total = items.length
+      const start = (page - 1) * limit
+      const paged = items.slice(start, start + limit)
+      return { items: paged, page, pageSize: limit, total }
+    }
   },
 
   async getGroup(id: string): Promise<Group | null> {
