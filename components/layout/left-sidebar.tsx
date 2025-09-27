@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Home, Users, MessageSquare, Trophy, Award, UserPlus, X, PenSquare, Video } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
 
 interface LeftSidebarProps {
@@ -11,10 +12,15 @@ interface LeftSidebarProps {
   onClose: () => void
 }
 
-const navigation = [
+// Navigation items for all users
+const publicNavigation = [
   { name: "Trang chủ", href: "/", icon: Home },
-  { name: "Bảng tin", href: "/feed", icon: PenSquare },
   { name: "Nhóm", href: "/groups", icon: Users },
+]
+
+// Navigation items only for authenticated users
+const authNavigation = [
+  { name: "Bảng tin", href: "/feed", icon: PenSquare },
   { name: "Tin nhắn", href: "/messages", icon: MessageSquare },
   { name: "Video", href: "/video", icon: Video },
   { name: "Mọi người", href: "/people", icon: UserPlus },
@@ -24,6 +30,10 @@ const navigation = [
 
 export function LeftSidebar({ isOpen, onClose }: LeftSidebarProps) {
   const pathname = usePathname()
+  const { user } = useAuth()
+
+  // Combine navigation items based on authentication status
+  const navigation = user ? [...publicNavigation, ...authNavigation] : publicNavigation
 
   return (
     <>
@@ -70,14 +80,25 @@ export function LeftSidebar({ isOpen, onClose }: LeftSidebarProps) {
             })}
           </nav>
 
-          {/* Create post button */}
+          {/* Create post button hoặc Auth buttons */}
           <div className="p-4">
-            <Button asChild className="w-full bg-educonnect-primary hover:bg-educonnect-primary/90">
-              <Link href="/compose">
-                <PenSquare className="mr-2 h-4 w-4" />
-                Tạo bài viết
-              </Link>
-            </Button>
+            {user ? (
+              <Button asChild className="w-full bg-educonnect-primary hover:bg-educonnect-primary/90">
+                <Link href="/compose">
+                  <PenSquare className="mr-2 h-4 w-4" />
+                  Tạo bài viết
+                </Link>
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <Button asChild variant="outline" className="w-full">
+                  <Link href="/login">Đăng nhập</Link>
+                </Button>
+                <Button asChild className="w-full bg-educonnect-primary hover:bg-educonnect-primary/90">
+                  <Link href="/register">Đăng ký</Link>
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </aside>

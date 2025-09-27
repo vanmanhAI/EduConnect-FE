@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useRef, useState, useEffect } from "react"
 import { Camera, Save, Bell, Shield, Globe, User, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,17 +14,27 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { AppShell } from "@/components/layout/app-shell"
 import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/contexts/auth-context"
+import { api } from "@/lib/api"
 
 export default function SettingsPage() {
   const { toast } = useToast()
+  const { user, refreshUser, updateUser } = useAuth()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
   const [profile, setProfile] = useState({
-    displayName: "Nguyễn Văn A",
-    username: "nguyenvana",
-    email: "nguyenvana@example.com",
-    bio: "Đam mê học tập và chia sẻ kiến thức với cộng đồng",
+    displayName: "",
+    username: "",
+    email: "",
+    bio: "",
+    location: "",
+    website: "",
+    linkedin: "",
+    github: "",
     avatar: "/placeholder.svg",
   })
+
+  const [originalProfile, setOriginalProfile] = useState(profile)
 
   const [notifications, setNotifications] = useState({
     emailNotifications: true,
@@ -35,11 +45,77 @@ export default function SettingsPage() {
 
   const [privacy, setPrivacy] = useState({
     profileVisibility: "public",
-    showEmail: false,
-    showActivity: true,
+    isOnline: true,
   })
 
+  const [originalPrivacy, setOriginalPrivacy] = useState(privacy)
+  const [privacyLoading, setPrivacyLoading] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  // Kiểm tra có thay đổi nào không
+  const hasChanges = () => {
+    return (
+      profile.displayName !== originalProfile.displayName ||
+      profile.bio !== originalProfile.bio ||
+      profile.location !== originalProfile.location ||
+      profile.website !== originalProfile.website ||
+      profile.linkedin !== originalProfile.linkedin ||
+      profile.github !== originalProfile.github
+    )
+  }
+
+  // Load user data khi component mount (chỉ chạy một lần)
+  useEffect(() => {
+    if (user && !profile.displayName) {
+      // Chỉ load khi profile chưa được set
+      const userData = {
+        displayName: user.displayName || "",
+        username: user.username || "",
+        email: user.email || "",
+        bio: user.bio || "",
+        location: user.location || "",
+        website: user.website || "",
+        linkedin: user.linkedin || "",
+        github: user.github || "",
+        avatar: user.avatar || "/placeholder.svg",
+      }
+      console.log("Loading initial user data to profile state:", userData)
+      setProfile(userData)
+      setOriginalProfile(userData)
+    }
+  }, [user, profile.displayName])
+
+  // Load privacy settings khi user đã load
+  useEffect(() => {
+    const loadPrivacySettings = async () => {
+      if (!user) return
+
+      try {
+        setPrivacyLoading(true)
+        const privacyData = await api.getUserPrivacy()
+        console.log("Privacy settings loaded:", privacyData)
+
+        const privacySettings = {
+          profileVisibility: privacyData.profileVisibility || "public",
+          isOnline: privacyData.isOnline !== undefined ? privacyData.isOnline : true,
+        }
+
+        setPrivacy(privacySettings)
+        setOriginalPrivacy(privacySettings)
+      } catch (error) {
+        console.error("Failed to load privacy settings:", error)
+        toast({
+          title: "Không thể tải cài đặt riêng tư",
+          description: "Sử dụng cài đặt mặc định",
+          variant: "destructive",
+        })
+      } finally {
+        setPrivacyLoading(false)
+      }
+    }
+
+    loadPrivacySettings()
+  }, [user, toast])
 
   const handlePickAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -54,13 +130,46 @@ export default function SettingsPage() {
       toast({ title: "Tệp quá lớn", description: "Giới hạn 5MB", variant: "destructive" })
       return
     }
+
     try {
-      const objectUrl = URL.createObjectURL(file)
-      setProfile((p) => ({ ...p, avatar: objectUrl }))
-      toast({ title: "Đã cập nhật ảnh đại diện", description: file.name })
+      setLoading(true)
+      toast({ title: "Đang tải lên...", description: "Vui lòng chờ" })
+
+      // Gọi API để upload avatar
+      const avatarUrl = await api.uploadAvatar(file)
+
+      console.log("Avatar uploaded successfully:", avatarUrl)
+      console.log("Current user before update:", user)
+
+      // Cập nhật avatar trong profile state
+      setProfile((p) => ({ ...p, avatar: avatarUrl }))
+      // Cập nhật originalProfile để tránh conflict
+      setOriginalProfile((p) => ({ ...p, avatar: avatarUrl }))
+
+      // Cập nhật user trong AuthContext với avatar mới
+      if (user) {
+        const updatedUser = { ...user, avatar: avatarUrl }
+        console.log("Updating user with new avatar:", updatedUser)
+        updateUser(updatedUser)
+
+        // Không gọi refreshUser() ngay lập tức vì sẽ overwrite avatar mới
+        // Server có thể cần thời gian để sync avatar
+        console.log("Avatar updated locally, not refreshing from server immediately")
+      }
+
+      toast({
+        title: "Đã cập nhật ảnh đại diện",
+        description: "Ảnh đại diện đã được thay đổi thành công",
+      })
     } catch (err) {
-      toast({ title: "Tải lên thất bại", description: "Vui lòng thử lại.", variant: "destructive" })
+      console.error("Avatar upload failed:", err)
+      toast({
+        title: "Tải lên thất bại",
+        description: "Không thể tải lên ảnh. Vui lòng thử lại.",
+        variant: "destructive",
+      })
     } finally {
+      setLoading(false)
       if (fileInputRef.current) fileInputRef.current.value = ""
     }
   }
@@ -68,10 +177,70 @@ export default function SettingsPage() {
   const handleSaveProfile = async () => {
     setLoading(true)
     try {
-      await new Promise((r) => setTimeout(r, 800))
-      toast({ title: "Đã lưu thay đổi hồ sơ" })
-    } catch (e) {
-      toast({ title: "Lưu thất bại", description: "Vui lòng thử lại.", variant: "destructive" })
+      // Tạo object chỉ chứa các field có thể cập nhật
+      const updateData = {
+        displayName: profile.displayName,
+        bio: profile.bio,
+        location: profile.location,
+        website: profile.website,
+        linkedin: profile.linkedin,
+        github: profile.github,
+      }
+
+      console.log("Updating profile with data:", updateData)
+
+      // Gọi API để cập nhật profile
+      const updatedUser = await api.updateCurrentUser(updateData)
+
+      // Cập nhật user context với data mới
+      updateUser(updatedUser)
+
+      // Cập nhật originalProfile để so sánh thay đổi
+      setOriginalProfile(profile)
+
+      toast({
+        title: "Đã lưu thay đổi hồ sơ",
+        description: "Thông tin của bạn đã được cập nhật thành công",
+      })
+    } catch (error) {
+      console.error("Failed to update profile:", error)
+      toast({
+        title: "Lưu thất bại",
+        description: "Không thể cập nhật thông tin. Vui lòng thử lại.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSavePrivacy = async () => {
+    setLoading(true)
+    try {
+      console.log("Updating privacy settings:", privacy)
+
+      // Gọi API để cập nhật privacy settings
+      const updatedPrivacy = await api.updateUserPrivacy(privacy)
+
+      console.log("Privacy settings updated successfully:", updatedPrivacy)
+
+      // Cập nhật originalPrivacy để so sánh thay đổi
+      setOriginalPrivacy(updatedPrivacy)
+
+      // Cập nhật state với data mới từ server
+      setPrivacy(updatedPrivacy)
+
+      toast({
+        title: "Đã lưu cài đặt riêng tư",
+        description: "Cài đặt riêng tư đã được cập nhật thành công",
+      })
+    } catch (error) {
+      console.error("Error updating privacy:", error)
+      toast({
+        title: "Lưu thất bại",
+        description: "Không thể cập nhật cài đặt riêng tư. Vui lòng thử lại.",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
@@ -82,18 +251,6 @@ export default function SettingsPage() {
     try {
       await new Promise((r) => setTimeout(r, 600))
       toast({ title: "Đã lưu cài đặt thông báo" })
-    } catch (e) {
-      toast({ title: "Lưu thất bại", description: "Vui lòng thử lại.", variant: "destructive" })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleSavePrivacy = async () => {
-    setLoading(true)
-    try {
-      await new Promise((r) => setTimeout(r, 600))
-      toast({ title: "Đã lưu cài đặt riêng tư" })
     } catch (e) {
       toast({ title: "Lưu thất bại", description: "Vui lòng thử lại.", variant: "destructive" })
     } finally {
@@ -163,22 +320,15 @@ export default function SettingsPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="username">Tên người dùng</Label>
-                    <Input
-                      id="username"
-                      value={profile.username}
-                      onChange={(e) => setProfile((prev) => ({ ...prev, username: e.target.value }))}
-                    />
+                    <Input id="username" value={profile.username} disabled className="opacity-60" />
+                    <p className="text-xs text-muted-foreground">Tên người dùng không thể thay đổi</p>
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={profile.email}
-                    onChange={(e) => setProfile((prev) => ({ ...prev, email: e.target.value }))}
-                  />
+                  <Input id="email" type="email" value={profile.email} disabled className="opacity-60" />
+                  <p className="text-xs text-muted-foreground">Email không thể thay đổi</p>
                 </div>
 
                 <div className="space-y-2">
@@ -192,14 +342,61 @@ export default function SettingsPage() {
                   />
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="location">Địa điểm</Label>
+                    <Input
+                      id="location"
+                      placeholder="Hà Nội, Việt Nam"
+                      value={profile.location}
+                      onChange={(e) => setProfile((prev) => ({ ...prev, location: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="website">Website</Label>
+                    <Input
+                      id="website"
+                      type="url"
+                      placeholder="https://example.com"
+                      value={profile.website}
+                      onChange={(e) => setProfile((prev) => ({ ...prev, website: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="linkedin">LinkedIn</Label>
+                    <Input
+                      id="linkedin"
+                      placeholder="https://linkedin.com/in/username"
+                      value={profile.linkedin}
+                      onChange={(e) => setProfile((prev) => ({ ...prev, linkedin: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="github">GitHub</Label>
+                    <Input
+                      id="github"
+                      placeholder="https://github.com/username"
+                      value={profile.github}
+                      onChange={(e) => setProfile((prev) => ({ ...prev, github: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
                 <Button
                   onClick={handleSaveProfile}
-                  disabled={loading}
-                  className="bg-educonnect-primary hover:bg-educonnect-primary/90"
+                  disabled={loading || !hasChanges()}
+                  className="bg-educonnect-primary hover:bg-educonnect-primary/90 disabled:opacity-50"
                 >
                   <Save className="mr-2 h-4 w-4" />
                   {loading ? "Đang lưu..." : "Lưu thay đổi"}
                 </Button>
+
+                {hasChanges() && <p className="text-sm text-muted-foreground">Bạn có thay đổi chưa lưu</p>}
               </CardContent>
             </Card>
           </TabsContent>
@@ -288,50 +485,51 @@ export default function SettingsPage() {
                 <CardDescription>Kiểm soát ai có thể xem thông tin của bạn</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 px-0">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Hiển thị hồ sơ</Label>
-                    <Select
-                      value={privacy.profileVisibility}
-                      onValueChange={(value) => setPrivacy((prev) => ({ ...prev, profileVisibility: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="public">Công khai</SelectItem>
-                        <SelectItem value="friends">Chỉ bạn bè</SelectItem>
-                        <SelectItem value="private">Riêng tư</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <Label>Hiển thị email</Label>
-                      <p className="text-sm text-muted-foreground">Cho phép người khác xem email của bạn</p>
+                {privacyLoading ? (
+                  <div className="space-y-4">
+                    <div className="animate-pulse">
+                      <div className="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
+                      <div className="h-10 bg-gray-200 rounded"></div>
                     </div>
-                    <Switch
-                      checked={privacy.showEmail}
-                      onCheckedChange={(checked) => setPrivacy((prev) => ({ ...prev, showEmail: checked }))}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <Label>Hiển thị hoạt động</Label>
-                      <p className="text-sm text-muted-foreground">Cho phép người khác xem hoạt động của bạn</p>
+                    <div className="animate-pulse">
+                      <div className="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
+                      <div className="h-6 bg-gray-200 rounded w-12"></div>
                     </div>
-                    <Switch
-                      checked={privacy.showActivity}
-                      onCheckedChange={(checked) => setPrivacy((prev) => ({ ...prev, showActivity: checked }))}
-                    />
                   </div>
-                </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Hiển thị hồ sơ</Label>
+                      <Select
+                        value={privacy.profileVisibility}
+                        onValueChange={(value) => setPrivacy((prev) => ({ ...prev, profileVisibility: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="public">Công khai</SelectItem>
+                          <SelectItem value="private">Riêng tư</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <Label>Hiển thị hoạt động</Label>
+                        <p className="text-sm text-muted-foreground">Cho phép người khác xem hoạt động của bạn</p>
+                      </div>
+                      <Switch
+                        checked={privacy.isOnline}
+                        onCheckedChange={(checked) => setPrivacy((prev) => ({ ...prev, isOnline: checked }))}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <Button
                   onClick={handleSavePrivacy}
-                  disabled={loading}
+                  disabled={loading || privacyLoading}
                   className="bg-educonnect-primary hover:bg-educonnect-primary/90"
                 >
                   <Save className="mr-2 h-4 w-4" />

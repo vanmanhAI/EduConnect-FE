@@ -4,7 +4,7 @@ import type { KeyboardEvent } from "react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import type { User, Notification } from "@/types"
+import type { Notification } from "@/types"
 import { Search, Bell, Menu, Trophy, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { SearchCommand } from "@/components/features/search/search-command"
 import { api } from "@/lib/api"
+import { useAuth } from "@/contexts/auth-context"
 import { formatPoints } from "@/lib/utils"
 
 interface TopNavProps {
@@ -26,22 +27,24 @@ interface TopNavProps {
 
 export function TopNav({ onMenuClick }: TopNavProps) {
   const router = useRouter()
-  const [user, setUser] = useState<User | null>(null)
+  const { user, logout: authLogout } = useAuth()
   const [notifications, setNotifications] = useState<any[]>([])
   const [searchOpen, setSearchOpen] = useState(false)
 
   useEffect(() => {
-    const loadData = async () => {
+    const loadNotifications = async () => {
       try {
-        const [currentUser, userNotifications] = await Promise.all([api.getCurrentUser(), api.getNotifications()])
-        setUser(currentUser)
+        const userNotifications = await api.getNotifications()
         setNotifications(userNotifications)
       } catch (error) {
-        console.error("Failed to load user data:", error)
+        console.error("Failed to load notifications:", error)
       }
     }
-    loadData()
-  }, [])
+
+    if (user) {
+      loadNotifications()
+    }
+  }, [user])
 
   useEffect(() => {
     const handleKeyDown = (e: Event) => {
@@ -59,7 +62,8 @@ export function TopNav({ onMenuClick }: TopNavProps) {
   const unreadCount = notifications.filter((n) => !n.isRead).length
 
   const handleLogout = () => {
-    setUser(null)
+    // Sử dụng logout function từ AuthContext
+    authLogout()
     setNotifications([])
     router.push("/login")
   }
@@ -112,29 +116,48 @@ export function TopNav({ onMenuClick }: TopNavProps) {
               </div>
             )}
 
-            {/* Messages */}
-            <Button variant="ghost" size="icon" className="relative hover:bg-educonnect-primary/10" asChild>
-              <Link href="/messages">
-                <MessageSquare className="h-5 w-5" />
-              </Link>
-            </Button>
+            {/* Messages - chỉ hiển thị khi đã đăng nhập */}
+            {user && (
+              <Button variant="ghost" size="icon" className="relative hover:bg-educonnect-primary/10" asChild>
+                <Link href="/messages">
+                  <MessageSquare className="h-5 w-5" />
+                </Link>
+              </Button>
+            )}
 
-            {/* Notifications */}
-            <Button variant="ghost" size="icon" className="relative hover:bg-educonnect-primary/10" asChild>
-              <Link href="/notifications">
-                <Bell className="h-5 w-5" />
-                {unreadCount > 0 && (
-                  <Badge
-                    variant="destructive"
-                    className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs animate-pulse"
-                  >
-                    {unreadCount > 9 ? "9+" : unreadCount}
-                  </Badge>
-                )}
-              </Link>
-            </Button>
+            {/* Notifications - chỉ hiển thị khi đã đăng nhập */}
+            {user && (
+              <Button variant="ghost" size="icon" className="relative hover:bg-educonnect-primary/10" asChild>
+                <Link href="/notifications">
+                  <Bell className="h-5 w-5" />
+                  {unreadCount > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs animate-pulse"
+                    >
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </Badge>
+                  )}
+                </Link>
+              </Button>
+            )}
 
-            {/* User menu */}
+            {/* Auth buttons cho users chưa đăng nhập */}
+            {!user && (
+              <div className="flex items-center space-x-2">
+                <Button variant="ghost" size="sm" className="hidden sm:flex" asChild>
+                  <Link href="/login">Đăng nhập</Link>
+                </Button>
+                <Button size="sm" className="bg-educonnect-primary hover:bg-educonnect-primary/90 text-sm px-3" asChild>
+                  <Link href="/register">
+                    <span className="hidden sm:inline">Đăng ký</span>
+                    <span className="sm:hidden">Đăng ký</span>
+                  </Link>
+                </Button>
+              </div>
+            )}
+
+            {/* User menu - chỉ hiển thị khi đã đăng nhập */}
             {user && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -159,7 +182,7 @@ export function TopNav({ onMenuClick }: TopNavProps) {
                   </div>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href={`/profile/${user.id}`}>
+                    <Link href="/profile/me">
                       <span>Hồ sơ</span>
                     </Link>
                   </DropdownMenuItem>
