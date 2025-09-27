@@ -3,10 +3,21 @@ export interface User {
   username: string
   email: string
   displayName: string
-  avatar?: string
+  avatar?: string | null
   bio?: string
+  location?: string
+  website?: string
+  linkedin?: string
+  github?: string
   points: number
   level: number
+  experiencePoints?: number
+  followersCount?: number
+  followingCount?: number
+  postsCount?: number
+  groupsCount?: number
+  experienceLevel?: string
+  profileVisibility?: string
   badges: Badge[]
   followers: number
   following: number
