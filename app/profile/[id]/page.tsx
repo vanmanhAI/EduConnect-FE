@@ -15,14 +15,12 @@ import { GroupCard } from "@/components/features/groups/group-card"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { api } from "@/lib/api"
-import { useAuth } from "@/contexts/auth-context"
 import { formatNumber, formatDate } from "@/lib/utils"
 import type { User, Post, Group, Badge as BadgeType } from "@/types"
 
 export default function ProfilePage() {
   const params = useParams()
   const userId = params.id as string
-  const { user: currentUser } = useAuth()
 
   const [user, setUser] = useState<User | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
@@ -39,67 +37,17 @@ export default function ProfilePage() {
       try {
         setLoading(true)
         setError(null)
-
-        console.log("=== Profile Page Debug Info ===")
-        console.log("userId from params:", userId)
-        console.log("currentUser:", currentUser)
-
-        let userData: User | null = null
-
-        // Kiểm tra xem đây có phải là profile của chính user hiện tại không
-        const isOwnProfile = currentUser && (userId === currentUser.id || userId === "me")
-        console.log("isOwnProfile:", isOwnProfile)
-
-        if (isOwnProfile && currentUser) {
-          // Sử dụng currentUser từ AuthContext trước (có avatar mới nhất)
-          console.log("Using currentUser from AuthContext (has latest avatar):", currentUser)
-          userData = currentUser
-
-          // Optional: Gọi API để sync thêm data từ server nhưng merge với currentUser
-          try {
-            const serverData = await api.getCurrentUser()
-            console.log("Server data for comparison:", serverData)
-            // Merge nhưng prioritize AuthContext data (có avatar mới)
-            userData = {
-              ...serverData,
-              ...currentUser, // AuthContext data takes priority
-              avatar: currentUser.avatar || serverData.avatar, // Ensure avatar từ AuthContext
-            }
-            console.log("Merged profile data:", userData)
-          } catch (error) {
-            console.log("Server sync failed, using AuthContext data only:", error)
-            // Vẫn sử dụng currentUser nếu API fail
-          }
-        } else if (userId === "me") {
-          // Fallback: Nếu userId là 'me' nhưng không có currentUser, vẫn thử gọi getCurrentUser
-          console.log('Fallback: userId is "me" but no currentUser, trying getCurrentUser anyway')
-          try {
-            userData = await api.getCurrentUser()
-            console.log("Fallback: Profile data from getCurrentUser:", userData)
-          } catch (error) {
-            console.error("Fallback failed:", error)
-            setError("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.")
-            return
-          }
-        } else {
-          // Gọi API thông thường cho profile của người khác
-          console.log("Loading other user profile via getUser API")
-          userData = await api.getUser(userId)
-          console.log("Profile data from getUser:", userData)
-        }
-
-        if (!userData) {
-          console.error("userData is null, setting error")
-          setError("Không tìm thấy người dùng")
-          return
-        }
-
-        // Load các dữ liệu khác
-        const [userPosts, userGroups, userBadges] = await Promise.all([
+        const [userData, userPosts, userGroups, userBadges] = await Promise.all([
+          api.getUser(userId),
           api.getPosts(), // Mock: filter by user in real implementation
           api.getGroups(), // Mock: filter by user groups in real implementation
           api.getBadges(),
         ])
+
+        if (!userData) {
+          setError("Không tìm thấy người dùng")
+          return
+        }
 
         setUser(userData)
         setPosts(userPosts.slice(0, 5)) // Mock: user's posts
@@ -108,7 +56,6 @@ export default function ProfilePage() {
         setIsFollowing(userData.isFollowing || false)
         setFollowerCount(userData.followers)
       } catch (err) {
-        console.error("Profile loading error:", err)
         setError("Không thể tải thông tin người dùng. Vui lòng thử lại.")
       } finally {
         setLoading(false)
@@ -116,22 +63,9 @@ export default function ProfilePage() {
     }
 
     if (userId) {
-      console.log("Starting to load user data for userId:", userId)
       loadUserData()
-    } else {
-      console.log("No userId provided, skipping load")
     }
-  }, [userId, currentUser])
-
-  // Listen cho thay đổi avatar trong AuthContext để update profile page
-  useEffect(() => {
-    const isOwnProfile = currentUser && (userId === currentUser.id || userId === "me")
-    if (isOwnProfile && currentUser && user && currentUser.avatar !== user.avatar) {
-      console.log("Avatar changed in AuthContext, updating profile page")
-      console.log("Old avatar:", user.avatar, "New avatar:", currentUser.avatar)
-      setUser({ ...user, avatar: currentUser.avatar })
-    }
-  }, [currentUser?.avatar, userId, currentUser, user])
+  }, [userId])
 
   const handleFollowToggle = async () => {
     if (!user) return
@@ -156,65 +90,25 @@ export default function ProfilePage() {
     const loadUserData = async () => {
       try {
         setLoading(true)
-        setError(null)
-
-        let userData: User | null = null
-
-        // Kiểm tra xem đây có phải là profile của chính user hiện tại không
-        const isOwnProfile = currentUser && (userId === currentUser.id || userId === "me")
-
-        if (isOwnProfile && currentUser) {
-          // Sử dụng currentUser từ AuthContext trước (có avatar mới nhất)
-          console.log("Retry: Using currentUser from AuthContext:", currentUser)
-          userData = currentUser
-
-          // Optional: Sync với server
-          try {
-            const serverData = await api.getCurrentUser()
-            userData = {
-              ...serverData,
-              ...currentUser,
-              avatar: currentUser.avatar || serverData.avatar,
-            }
-          } catch (error) {
-            console.log("Retry: Server sync failed, using AuthContext data:", error)
-          }
-        } else if (userId === "me") {
-          // Fallback: Nếu userId là 'me' nhưng không có currentUser, vẫn thử gọi getCurrentUser
-          console.log('Retry Fallback: userId is "me" but no currentUser, trying getCurrentUser anyway')
-          try {
-            userData = await api.getCurrentUser()
-            console.log("Retry Fallback: Profile data from getCurrentUser:", userData)
-          } catch (error) {
-            console.error("Retry Fallback failed:", error)
-            setError("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.")
-            return
-          }
-        } else {
-          // Gọi API thông thường cho profile của người khác
-          userData = await api.getUser(userId)
-        }
+        const [userData, userPosts, userGroups, userBadges] = await Promise.all([
+          api.getUser(userId),
+          api.getPosts(),
+          api.getGroups(),
+          api.getBadges(),
+        ])
 
         if (!userData) {
           setError("Không tìm thấy người dùng")
           return
         }
 
-        // Load các dữ liệu khác
-        const [userPosts, userGroups, userBadges] = await Promise.all([
-          api.getPosts(), // Mock: filter by user in real implementation
-          api.getGroups(), // Mock: filter by user groups in real implementation
-          api.getBadges(),
-        ])
-
         setUser(userData)
-        setPosts(userPosts.slice(0, 5)) // Mock: user's posts
-        setGroups(userGroups.slice(0, 3)) // Mock: user's groups
-        setBadges(userBadges.slice(0, 4)) // Mock: user's badges
+        setPosts(userPosts.slice(0, 5))
+        setGroups(userGroups.slice(0, 3))
+        setBadges(userBadges.slice(0, 4))
         setIsFollowing(userData.isFollowing || false)
         setFollowerCount(userData.followers)
       } catch (err) {
-        console.error("Retry failed:", err)
         setError("Không thể tải thông tin người dùng. Vui lòng thử lại.")
       } finally {
         setLoading(false)
@@ -252,7 +146,7 @@ export default function ProfilePage() {
     )
   }
 
-  const isOwnProfile = currentUser && (userId === currentUser.id || userId === "me")
+  const isOwnProfile = userId === "1" // Mock: check if viewing own profile
 
   return (
     <AppShell>
@@ -279,7 +173,6 @@ export default function ProfilePage() {
                   <div className="space-y-2 min-w-0">
                     <h1 className="text-xl md:text-2xl font-bold truncate">{user.displayName}</h1>
                     <p className="text-muted-foreground text-sm truncate">@{user.username}</p>
-                    {user.location && <p className="text-muted-foreground text-sm truncate">{user.location}</p>}
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <Calendar className="h-4 w-4" />
                       <span>Tham gia {formatDate(user.joinedAt)}</span>
@@ -293,7 +186,7 @@ export default function ProfilePage() {
                     <Button variant="outline" size="sm" asChild aria-label="Chỉnh sửa hồ sơ">
                       <a href="/settings">
                         <Settings className="mr-2 h-4 w-4" />
-                        Chỉnh sửa hồ sơ
+                        Chỉnh sửa m
                       </a>
                     </Button>
                   ) : (
@@ -333,64 +226,16 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              {/* Social Links */}
-              {(user.website || user.linkedin || user.github) && (
-                <div className="border-t pt-4">
-                  <div className="flex flex-wrap gap-4 text-sm">
-                    {user.website && (
-                      <a
-                        href={user.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-educonnect-primary hover:underline"
-                      >
-                        🌐 Website
-                      </a>
-                    )}
-                    {user.linkedin && (
-                      <a
-                        href={user.linkedin}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-blue-600 hover:underline"
-                      >
-                        💼 LinkedIn
-                      </a>
-                    )}
-                    {user.github && (
-                      <a
-                        href={user.github}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-gray-800 dark:text-gray-200 hover:underline"
-                      >
-                        👨‍💻 GitHub
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {/* Stats */}
               <div className="border-t pt-4">
                 <div className="flex flex-wrap items-center gap-6 text-sm">
                   <div className="flex items-center space-x-1">
-                    <span className="font-semibold">
-                      {formatNumber(user.followersCount || followerCount || user.followers)}
-                    </span>
+                    <span className="font-semibold">{formatNumber(followerCount)}</span>
                     <span className="text-muted-foreground">người theo dõi</span>
                   </div>
                   <div className="flex items-center space-x-1">
-                    <span className="font-semibold">{formatNumber(user.followingCount || user.following)}</span>
+                    <span className="font-semibold">{formatNumber(user.following)}</span>
                     <span className="text-muted-foreground">đang theo dõi</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <span className="font-semibold">{formatNumber(user.postsCount || 0)}</span>
-                    <span className="text-muted-foreground">bài viết</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <span className="font-semibold">{formatNumber(user.groupsCount || 0)}</span>
-                    <span className="text-muted-foreground">nhóm</span>
                   </div>
                   <div className="flex items-center space-x-1">
                     <Trophy className="h-4 w-4 text-educonnect-primary" />
@@ -399,11 +244,6 @@ export default function ProfilePage() {
                   <Badge variant="secondary" className="text-xs">
                     Level {user.level}
                   </Badge>
-                  {user.experienceLevel && (
-                    <Badge variant="outline" className="text-xs capitalize">
-                      {user.experienceLevel}
-                    </Badge>
-                  )}
                 </div>
               </div>
             </div>

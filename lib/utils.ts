@@ -5,28 +5,9 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatDate(date: Date | string | null | undefined): string {
-  // Handle null, undefined, or invalid date
-  if (!date) return "Không rõ"
-
-  let dateObj: Date
-
-  // Convert to Date object if it's a string
-  if (typeof date === "string") {
-    dateObj = new Date(date)
-  } else if (date instanceof Date) {
-    dateObj = date
-  } else {
-    return "Không rõ"
-  }
-
-  // Check if date is valid
-  if (isNaN(dateObj.getTime())) {
-    return "Không rõ"
-  }
-
+export function formatDate(date: Date): string {
   const now = new Date()
-  const diff = now.getTime() - dateObj.getTime()
+  const diff = now.getTime() - date.getTime()
   const minutes = Math.floor(diff / (1000 * 60))
   const hours = Math.floor(diff / (1000 * 60 * 60))
   const days = Math.floor(diff / (1000 * 60 * 60 * 24))
@@ -36,7 +17,7 @@ export function formatDate(date: Date | string | null | undefined): string {
   if (hours < 24) return `${hours} giờ trước`
   if (days < 7) return `${days} ngày trước`
 
-  return dateObj.toLocaleDateString("vi-VN")
+  return date.toLocaleDateString("vi-VN")
 }
 
 export function formatNumber(num: number): string {
