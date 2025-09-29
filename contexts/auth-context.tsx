@@ -12,7 +12,6 @@ interface AuthContextType {
   refreshUser: () => Promise<void>
   updateUser: (userData: User) => void
   logout: () => void
-  login: (token: string, refreshToken: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -47,33 +46,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }
 
-  const login = async (token: string, refreshToken: string) => {
-    try {
-      // Lưu token trước
-      tokenManager.saveAuthData(token, refreshToken, null)
-
-      // Lấy user data từ API
-      const userData = await api.getCurrentUser()
-      console.log("User data after login:", userData)
-
-      // Lưu user data vào state và localStorage
-      setUser(userData)
-      tokenManager.saveAuthData(token, refreshToken, userData)
-    } catch (error) {
-      console.error("Failed to get user data after login:", error)
-      tokenManager.clearAuthData()
-      setUser(null)
-      throw error
-    }
-  }
-
   const updateUser = (userData: User) => {
-    console.log("updateUser called with:", userData)
     setUser(userData)
     // Cập nhật localStorage với data mới
     const token = tokenManager.getToken()
     if (token) {
-      console.log("Saving updated user data to localStorage:", userData)
       tokenManager.saveAuthData(token, tokenManager.getRefreshToken() || "", userData)
     }
   }
@@ -89,30 +66,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (storedUser && token) {
           // Hiển thị user từ localStorage trước
-          console.log("Loading user from localStorage:", storedUser)
           setUser(storedUser)
 
-          // Sau đó refresh data từ API để sync với server
+          // Sau đó refresh data từ API
           try {
-            console.log("Refreshing user data from server...")
-            const serverUserData = await api.getCurrentUser()
-            console.log("Server user data:", serverUserData)
-
-            // So sánh avatar - nếu localStorage có avatar mới hơn, giữ lại
-            const finalUserData = {
-              ...serverUserData,
-              // Giữ avatar từ localStorage nếu có và khác với server
-              avatar:
-                storedUser.avatar !== serverUserData.avatar && storedUser.avatar
-                  ? storedUser.avatar
-                  : serverUserData.avatar,
-            }
-
-            console.log("Final merged user data:", finalUserData)
-            setUser(finalUserData)
-
-            // Cập nhật localStorage với merged data
-            tokenManager.saveAuthData(token, tokenManager.getRefreshToken() || "", finalUserData)
+            await refreshUser()
           } catch (error) {
             console.error("Failed to refresh user on init:", error)
             // Giữ user data từ localStorage nếu API fail
@@ -135,7 +93,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshUser,
     updateUser,
     logout,
-    login,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

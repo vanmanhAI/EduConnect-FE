@@ -316,8 +316,6 @@ export const api = {
 
     // Transform backend data to match frontend User interface
     const backendUser = data.data || data
-    console.log("Backend user avatar from API:", backendUser.avatar)
-
     return {
       id: backendUser.id || crypto.randomUUID(),
       username: backendUser.username || "",
@@ -476,63 +474,6 @@ export const api = {
     console.log("updateUserPrivacy API response:", data)
 
     return data.data || privacyData
-  },
-
-  async uploadAvatar(file: File): Promise<string> {
-    // Gọi API POST để upload avatar
-    const token = typeof window !== "undefined" ? localStorage.getItem("educonnect_token") : null
-    if (!token) {
-      throw new Error("Token không tồn tại")
-    }
-
-    console.log("Uploading avatar file:", file.name, file.type, file.size)
-
-    const formData = new FormData()
-    formData.append("avatar", file)
-
-    console.log("FormData created:", formData)
-    console.log(
-      "API endpoint:",
-      (process.env.NEXT_PUBLIC_API_BASE || "https://educonnect-be-wx8t.onrender.com/api/v1") + "/users/me/avatar"
-    )
-
-    const response = await fetch(
-      (process.env.NEXT_PUBLIC_API_BASE || "https://educonnect-be-wx8t.onrender.com/api/v1") + "/users/me/avatar",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          // Không set Content-Type để browser tự set với boundary cho multipart/form-data
-        },
-        credentials: "include",
-        body: formData,
-      }
-    )
-
-    console.log("Upload response status:", response.status, response.statusText)
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error("Upload error response:", errorText)
-      throw new Error(`HTTP error! status: ${response.status} - ${errorText}`)
-    }
-
-    const data = await response.json()
-    console.log("uploadAvatar API response:", data)
-
-    // Return full URL for avatar
-    const avatarPath = data.data
-    console.log("Avatar path from response:", avatarPath)
-
-    // Construct full URL - remove /api/v1 from base URL for static files
-    const baseUrl = (process.env.NEXT_PUBLIC_API_BASE || "https://educonnect-be-wx8t.onrender.com").replace(
-      "/api/v1",
-      ""
-    )
-    const fullAvatarUrl = avatarPath.startsWith("http") ? avatarPath : `${baseUrl}${avatarPath}`
-
-    console.log("Constructed avatar URL:", fullAvatarUrl)
-    return fullAvatarUrl
   },
 
   async getUser(id: string): Promise<User | null> {

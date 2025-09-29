@@ -166,7 +166,7 @@ export default function HomePage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button size="lg" variant="secondary" asChild>
-              <Link href="/auth/sign-in">Đăng ký miễn phí</Link>
+              <Link href="/register">Đăng ký miễn phí</Link>
             </Button>
             <Button
               size="lg"

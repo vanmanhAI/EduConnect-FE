@@ -64,10 +64,9 @@ export default function SettingsPage() {
     )
   }
 
-  // Load user data khi component mount (chỉ chạy một lần)
+  // Load user data khi component mount
   useEffect(() => {
-    if (user && !profile.displayName) {
-      // Chỉ load khi profile chưa được set
+    if (user) {
       const userData = {
         displayName: user.displayName || "",
         username: user.username || "",
@@ -79,11 +78,10 @@ export default function SettingsPage() {
         github: user.github || "",
         avatar: user.avatar || "/placeholder.svg",
       }
-      console.log("Loading initial user data to profile state:", userData)
       setProfile(userData)
       setOriginalProfile(userData)
     }
-  }, [user, profile.displayName])
+  }, [user])
 
   // Load privacy settings khi user đã load
   useEffect(() => {
@@ -130,46 +128,13 @@ export default function SettingsPage() {
       toast({ title: "Tệp quá lớn", description: "Giới hạn 5MB", variant: "destructive" })
       return
     }
-
     try {
-      setLoading(true)
-      toast({ title: "Đang tải lên...", description: "Vui lòng chờ" })
-
-      // Gọi API để upload avatar
-      const avatarUrl = await api.uploadAvatar(file)
-
-      console.log("Avatar uploaded successfully:", avatarUrl)
-      console.log("Current user before update:", user)
-
-      // Cập nhật avatar trong profile state
-      setProfile((p) => ({ ...p, avatar: avatarUrl }))
-      // Cập nhật originalProfile để tránh conflict
-      setOriginalProfile((p) => ({ ...p, avatar: avatarUrl }))
-
-      // Cập nhật user trong AuthContext với avatar mới
-      if (user) {
-        const updatedUser = { ...user, avatar: avatarUrl }
-        console.log("Updating user with new avatar:", updatedUser)
-        updateUser(updatedUser)
-
-        // Không gọi refreshUser() ngay lập tức vì sẽ overwrite avatar mới
-        // Server có thể cần thời gian để sync avatar
-        console.log("Avatar updated locally, not refreshing from server immediately")
-      }
-
-      toast({
-        title: "Đã cập nhật ảnh đại diện",
-        description: "Ảnh đại diện đã được thay đổi thành công",
-      })
+      const objectUrl = URL.createObjectURL(file)
+      setProfile((p) => ({ ...p, avatar: objectUrl }))
+      toast({ title: "Đã cập nhật ảnh đại diện", description: file.name })
     } catch (err) {
-      console.error("Avatar upload failed:", err)
-      toast({
-        title: "Tải lên thất bại",
-        description: "Không thể tải lên ảnh. Vui lòng thử lại.",
-        variant: "destructive",
-      })
+      toast({ title: "Tải lên thất bại", description: "Vui lòng thử lại.", variant: "destructive" })
     } finally {
-      setLoading(false)
       if (fileInputRef.current) fileInputRef.current.value = ""
     }
   }

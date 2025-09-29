@@ -16,7 +16,7 @@ import { useAuth } from "@/contexts/auth-context"
 
 export default function RegisterPage() {
   const router = useRouter()
-  const { login } = useAuth()
+  const { setUser } = useAuth()
   const [formData, setFormData] = useState<RegisterRequest>({
     displayName: "",
     username: "",
@@ -103,13 +103,41 @@ export default function RegisterPage() {
       if (result.success && result.data) {
         console.log("Registration successful:", result)
 
-        // Sử dụng hàm login trong AuthContext để lưu user data
-        await login(result.data.token, result.data.refreshToken)
+        // Tạo User object đầy đủ cho AuthContext
+        const userForContext = {
+          id: result.data.user.id,
+          displayName: result.data.user.displayName,
+          username: result.data.user.username,
+          email: result.data.user.email,
+          avatar: result.data.user.avatar || "/placeholder-user.jpg",
+          bio: "",
+          location: "",
+          website: "",
+          linkedin: "",
+          github: "",
+          points: 0,
+          level: 1,
+          followersCount: 0,
+          followingCount: 0,
+          postsCount: 0,
+          groupsCount: 0,
+          badges: [],
+          followers: 0,
+          following: 0,
+          joinedAt: new Date(),
+          isOnline: true,
+        }
 
-        console.log("User registered and logged in")
+        // Sử dụng tokenManager để lưu auth data
+        tokenManager.saveAuthData(result.data.token, result.data.refreshToken, userForContext)
 
-        // Redirect to feed
-        router.push("/feed")
+        // Cập nhật user trong AuthContext
+        setUser(userForContext)
+
+        console.log("User registered and logged in:", userForContext)
+
+        // Redirect to homepage
+        router.push("/")
       } else {
         // Handle errors from the new response format
         setGeneralError(result.message || "Đã xảy ra lỗi khi đăng ký")
