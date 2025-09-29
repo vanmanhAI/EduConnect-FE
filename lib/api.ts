@@ -290,8 +290,249 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://educonnect-be-wx8t
 export const api = {
   // Users
   async getCurrentUser(): Promise<User> {
-    await delay(300)
-    return mockUsers[0]
+    // Gọi API thật lấy thông tin user hiện tại
+    const token = typeof window !== "undefined" ? localStorage.getItem("educonnect_token") : null
+    if (!token) {
+      throw new Error("Token không tồn tại")
+    }
+
+    const response = await fetch(
+      (process.env.NEXT_PUBLIC_API_BASE || "https://educonnect-be-wx8t.onrender.com/api/v1") + "/users/me",
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log("getCurrentUser API response:", data)
+
+    // Transform backend data to match frontend User interface
+    const backendUser = data.data || data
+    console.log("Backend user avatar from API:", backendUser.avatar)
+
+    return {
+      id: backendUser.id || crypto.randomUUID(),
+      username: backendUser.username || "",
+      email: backendUser.email || "",
+      displayName: backendUser.displayName || backendUser.name || "",
+      avatar: backendUser.avatar || null,
+      bio: backendUser.bio || "",
+      location: backendUser.location || "",
+      website: backendUser.website || "",
+      linkedin: backendUser.linkedin || "",
+      github: backendUser.github || "",
+      points: backendUser.points || 0,
+      level: backendUser.level || 1,
+      experiencePoints: backendUser.experiencePoints || 0,
+      followersCount: backendUser.followersCount || 0,
+      followingCount: backendUser.followingCount || 0,
+      postsCount: backendUser.postsCount || 0,
+      groupsCount: backendUser.groupsCount || 0,
+      experienceLevel: backendUser.experienceLevel || "beginner",
+      profileVisibility: backendUser.profileVisibility || "public",
+      badges: backendUser.badges || [],
+      followers: backendUser.followersCount || 0,
+      following: backendUser.followingCount || 0,
+      joinedAt: backendUser.joinedAt ? new Date(backendUser.joinedAt) : new Date(),
+      isFollowing: backendUser.isFollowing || false,
+      isOnline: backendUser.isOnline || false,
+    }
+  },
+
+  async updateCurrentUser(profileData: {
+    displayName?: string
+    bio?: string
+    location?: string
+    website?: string
+    linkedin?: string
+    github?: string
+  }): Promise<User> {
+    // Gọi API PATCH để cập nhật thông tin user
+    const token = typeof window !== "undefined" ? localStorage.getItem("educonnect_token") : null
+    if (!token) {
+      throw new Error("Token không tồn tại")
+    }
+
+    const response = await fetch(
+      (process.env.NEXT_PUBLIC_API_BASE || "https://educonnect-be-wx8t.onrender.com/api/v1") + "/users/me",
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(profileData),
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log("updateCurrentUser API response:", data)
+
+    // Transform backend data to match frontend User interface
+    const backendUser = data.data || data
+    return {
+      id: backendUser.id || crypto.randomUUID(),
+      username: backendUser.username || "",
+      email: backendUser.email || "",
+      displayName: backendUser.displayName || backendUser.name || "",
+      avatar: backendUser.avatar || null,
+      bio: backendUser.bio || "",
+      location: backendUser.location || "",
+      website: backendUser.website || "",
+      linkedin: backendUser.linkedin || "",
+      github: backendUser.github || "",
+      points: backendUser.points || 0,
+      level: backendUser.level || 1,
+      experiencePoints: backendUser.experiencePoints || 0,
+      followersCount: backendUser.followersCount || 0,
+      followingCount: backendUser.followingCount || 0,
+      postsCount: backendUser.postsCount || 0,
+      groupsCount: backendUser.groupsCount || 0,
+      experienceLevel: backendUser.experienceLevel || "beginner",
+      profileVisibility: backendUser.profileVisibility || "public",
+      badges: backendUser.badges || [],
+      followers: backendUser.followersCount || 0,
+      following: backendUser.followingCount || 0,
+      joinedAt: backendUser.joinedAt ? new Date(backendUser.joinedAt) : new Date(),
+      isFollowing: backendUser.isFollowing || false,
+      isOnline: backendUser.isOnline || false,
+    }
+  },
+
+  async getUserPrivacy(): Promise<{
+    profileVisibility: string
+    isOnline: boolean
+  }> {
+    // Gọi API GET để lấy privacy settings
+    const token = typeof window !== "undefined" ? localStorage.getItem("educonnect_token") : null
+    if (!token) {
+      throw new Error("Token không tồn tại")
+    }
+
+    const response = await fetch(
+      (process.env.NEXT_PUBLIC_API_BASE || "https://educonnect-be-wx8t.onrender.com/api/v1") + "/users/me/privacy",
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log("getUserPrivacy API response:", data)
+
+    return data.data || data
+  },
+
+  async updateUserPrivacy(privacyData: { profileVisibility: string; isOnline: boolean }): Promise<{
+    profileVisibility: string
+    isOnline: boolean
+  }> {
+    // Gọi API PATCH để cập nhật privacy settings
+    const token = typeof window !== "undefined" ? localStorage.getItem("educonnect_token") : null
+    if (!token) {
+      throw new Error("Token không tồn tại")
+    }
+
+    console.log("Updating privacy with data:", privacyData)
+
+    const response = await fetch(
+      (process.env.NEXT_PUBLIC_API_BASE || "https://educonnect-be-wx8t.onrender.com/api/v1") + "/users/me/privacy",
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(privacyData),
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log("updateUserPrivacy API response:", data)
+
+    return data.data || privacyData
+  },
+
+  async uploadAvatar(file: File): Promise<string> {
+    // Gọi API POST để upload avatar
+    const token = typeof window !== "undefined" ? localStorage.getItem("educonnect_token") : null
+    if (!token) {
+      throw new Error("Token không tồn tại")
+    }
+
+    console.log("Uploading avatar file:", file.name, file.type, file.size)
+
+    const formData = new FormData()
+    formData.append("avatar", file)
+
+    console.log("FormData created:", formData)
+    console.log(
+      "API endpoint:",
+      (process.env.NEXT_PUBLIC_API_BASE || "https://educonnect-be-wx8t.onrender.com/api/v1") + "/users/me/avatar"
+    )
+
+    const response = await fetch(
+      (process.env.NEXT_PUBLIC_API_BASE || "https://educonnect-be-wx8t.onrender.com/api/v1") + "/users/me/avatar",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          // Không set Content-Type để browser tự set với boundary cho multipart/form-data
+        },
+        credentials: "include",
+        body: formData,
+      }
+    )
+
+    console.log("Upload response status:", response.status, response.statusText)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("Upload error response:", errorText)
+      throw new Error(`HTTP error! status: ${response.status} - ${errorText}`)
+    }
+
+    const data = await response.json()
+    console.log("uploadAvatar API response:", data)
+
+    // Return full URL for avatar
+    const avatarPath = data.data
+    console.log("Avatar path from response:", avatarPath)
+
+    // Construct full URL - remove /api/v1 from base URL for static files
+    const baseUrl = (process.env.NEXT_PUBLIC_API_BASE || "https://educonnect-be-wx8t.onrender.com").replace(
+      "/api/v1",
+      ""
+    )
+    const fullAvatarUrl = avatarPath.startsWith("http") ? avatarPath : `${baseUrl}${avatarPath}`
+
+    console.log("Constructed avatar URL:", fullAvatarUrl)
+    return fullAvatarUrl
   },
 
   async getUser(id: string): Promise<User | null> {
