@@ -16,7 +16,7 @@ import { useAuth } from "@/contexts/auth-context"
 
 export default function LoginPage() {
   const router = useRouter()
-  const { login } = useAuth()
+  const { refreshUser } = useAuth()
   const [formData, setFormData] = useState<LoginRequest>({
     email: "",
     password: "",
@@ -64,11 +64,11 @@ export default function LoginPage() {
     try {
       const result = await authAPI.login(formData)
 
-      if (result.success && result.data) {
+      if (result.success) {
         console.log("Login successful:", result)
 
-        // Sử dụng hàm login trong AuthContext để lưu user data
-        await login(result.data.token, result.data.refreshToken)
+        // Refresh user data trong AuthContext
+        await refreshUser()
 
         router.push("/feed")
       } else {

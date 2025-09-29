@@ -54,12 +54,10 @@ const USER_KEY = "educonnect_user"
 export const tokenManager = {
   // Save tokens and user data
   saveAuthData: (token: string, refreshToken: string, user: any) => {
-    console.log("tokenManager.saveAuthData called with user:", user)
     if (typeof window !== "undefined") {
       localStorage.setItem(TOKEN_KEY, token)
       localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
       localStorage.setItem(USER_KEY, JSON.stringify(user))
-      console.log("User data saved to localStorage:", JSON.stringify(user))
     }
   },
 
@@ -83,9 +81,7 @@ export const tokenManager = {
   getUser: (): any | null => {
     if (typeof window !== "undefined") {
       const userStr = localStorage.getItem(USER_KEY)
-      const user = userStr ? JSON.parse(userStr) : null
-      console.log("tokenManager.getUser() returning:", user)
-      return user
+      return userStr ? JSON.parse(userStr) : null
     }
     return null
   },

@@ -50,26 +50,11 @@ export default function ProfilePage() {
         const isOwnProfile = currentUser && (userId === currentUser.id || userId === "me")
         console.log("isOwnProfile:", isOwnProfile)
 
-        if (isOwnProfile && currentUser) {
-          // Sử dụng currentUser từ AuthContext trước (có avatar mới nhất)
-          console.log("Using currentUser from AuthContext (has latest avatar):", currentUser)
-          userData = currentUser
-
-          // Optional: Gọi API để sync thêm data từ server nhưng merge với currentUser
-          try {
-            const serverData = await api.getCurrentUser()
-            console.log("Server data for comparison:", serverData)
-            // Merge nhưng prioritize AuthContext data (có avatar mới)
-            userData = {
-              ...serverData,
-              ...currentUser, // AuthContext data takes priority
-              avatar: currentUser.avatar || serverData.avatar, // Ensure avatar từ AuthContext
-            }
-            console.log("Merged profile data:", userData)
-          } catch (error) {
-            console.log("Server sync failed, using AuthContext data only:", error)
-            // Vẫn sử dụng currentUser nếu API fail
-          }
+        if (isOwnProfile) {
+          // Gọi API /users/me để lấy thông tin thật của chính mình
+          console.log("Loading current user profile via /users/me API")
+          userData = await api.getCurrentUser()
+          console.log("Profile data from /users/me:", userData)
         } else if (userId === "me") {
           // Fallback: Nếu userId là 'me' nhưng không có currentUser, vẫn thử gọi getCurrentUser
           console.log('Fallback: userId is "me" but no currentUser, trying getCurrentUser anyway')
@@ -123,16 +108,6 @@ export default function ProfilePage() {
     }
   }, [userId, currentUser])
 
-  // Listen cho thay đổi avatar trong AuthContext để update profile page
-  useEffect(() => {
-    const isOwnProfile = currentUser && (userId === currentUser.id || userId === "me")
-    if (isOwnProfile && currentUser && user && currentUser.avatar !== user.avatar) {
-      console.log("Avatar changed in AuthContext, updating profile page")
-      console.log("Old avatar:", user.avatar, "New avatar:", currentUser.avatar)
-      setUser({ ...user, avatar: currentUser.avatar })
-    }
-  }, [currentUser?.avatar, userId, currentUser, user])
-
   const handleFollowToggle = async () => {
     if (!user) return
 
@@ -163,22 +138,11 @@ export default function ProfilePage() {
         // Kiểm tra xem đây có phải là profile của chính user hiện tại không
         const isOwnProfile = currentUser && (userId === currentUser.id || userId === "me")
 
-        if (isOwnProfile && currentUser) {
-          // Sử dụng currentUser từ AuthContext trước (có avatar mới nhất)
-          console.log("Retry: Using currentUser from AuthContext:", currentUser)
-          userData = currentUser
-
-          // Optional: Sync với server
-          try {
-            const serverData = await api.getCurrentUser()
-            userData = {
-              ...serverData,
-              ...currentUser,
-              avatar: currentUser.avatar || serverData.avatar,
-            }
-          } catch (error) {
-            console.log("Retry: Server sync failed, using AuthContext data:", error)
-          }
+        if (isOwnProfile) {
+          // Gọi API /users/me để lấy thông tin thật của chính mình
+          console.log("Retrying: Loading current user profile via /users/me API")
+          userData = await api.getCurrentUser()
+          console.log("Retry: Profile data from /users/me:", userData)
         } else if (userId === "me") {
           // Fallback: Nếu userId là 'me' nhưng không có currentUser, vẫn thử gọi getCurrentUser
           console.log('Retry Fallback: userId is "me" but no currentUser, trying getCurrentUser anyway')
