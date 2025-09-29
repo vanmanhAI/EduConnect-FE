@@ -11,12 +11,10 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { authAPI, tokenManager, type RegisterRequest, type AuthResult } from "@/lib/auth"
-import { useAuth } from "@/contexts/auth-context"
+import { authAPI, type RegisterRequest, type AuthResult } from "@/lib/auth"
 
 export default function RegisterPage() {
   const router = useRouter()
-  const { login } = useAuth()
   const [formData, setFormData] = useState<RegisterRequest>({
     displayName: "",
     username: "",
@@ -100,15 +98,9 @@ export default function RegisterPage() {
     try {
       const result = await authAPI.register(formData)
 
-      if (result.success && result.data) {
+      if (result.success) {
         console.log("Registration successful:", result)
-
-        // Sử dụng hàm login trong AuthContext để lưu user data
-        await login(result.data.token, result.data.refreshToken)
-
-        console.log("User registered and logged in")
-
-        // Redirect to feed
+        // Redirect to feed on success
         router.push("/feed")
       } else {
         // Handle errors from the new response format
