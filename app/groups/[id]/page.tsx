@@ -230,7 +230,7 @@ export default function GroupDetailPage() {
                 </div>
 
                 {/* Tags */}
-                {group.tags.length > 0 && (
+                {group.tags && group.tags.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {group.tags.map((tag) => (
                       <Badge key={tag} variant="secondary" className="text-xs">

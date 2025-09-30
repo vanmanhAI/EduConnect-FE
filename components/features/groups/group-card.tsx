@@ -106,7 +106,7 @@ function GroupCardComponent({ group }: GroupCardProps) {
             {/* Responsive Avatar with error handling */}
             <Avatar className="h-10 w-10 sm:h-12 sm:w-12 flex-shrink-0">
               <AvatarImage
-                src={!avatarImageError ? group.avatar : undefined}
+                src={!avatarImageError ? group.avatar || undefined : undefined}
                 alt={`Avatar của nhóm ${group.name}`}
                 onError={handleAvatarImageError}
               />
@@ -154,9 +154,9 @@ function GroupCardComponent({ group }: GroupCardProps) {
         </p>
 
         {/* Tags */}
-        {group.tags.length > 0 && (
+        {(group.tags || group.tag || []).length > 0 && (
           <div className="flex flex-wrap gap-1.5 sm:gap-2" role="list" aria-label="Thẻ tag của nhóm">
-            {group.tags.slice(0, 5).map((tag) => (
+            {(group.tags || group.tag || []).slice(0, 5).map((tag) => (
               <Badge
                 key={tag}
                 variant="secondary"
@@ -164,12 +164,16 @@ function GroupCardComponent({ group }: GroupCardProps) {
                 role="listitem"
                 aria-label={`Tag ${tag}`}
               >
-                #{tag}
+                {tag.startsWith("#") ? tag : `#${tag}`}
               </Badge>
             ))}
-            {group.tags.length > 5 && (
-              <Badge variant="outline" className="text-xs" aria-label={`Và ${group.tags.length - 5} tag khác`}>
-                +{group.tags.length - 5}
+            {(group.tags || group.tag || []).length > 5 && (
+              <Badge
+                variant="outline"
+                className="text-xs"
+                aria-label={`Và ${(group.tags || group.tag || []).length - 5} tag khác`}
+              >
+                +{(group.tags || group.tag || []).length - 5}
               </Badge>
             )}
           </div>

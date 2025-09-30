@@ -12,6 +12,9 @@ import type {
   LeaderboardEntry,
   Notification,
   SearchResult,
+  GroupsApiResponse,
+  CreateGroupRequest,
+  CreateGroupApiResponse,
 } from "@/types"
 import { tokenManager } from "@/lib/auth"
 
@@ -57,6 +60,8 @@ const mockGroups: Group[] = [
     description: "Cộng đồng học và chia sẻ kiến thức JavaScript",
     coverImage: "/placeholder.svg?height=200&width=800",
     memberCount: 234,
+    postCount: 15,
+    tag: ["javascript", "frontend", "backend"],
     isPrivate: false,
     tags: ["javascript", "frontend", "backend"],
     createdAt: new Date("2024-01-01"),
@@ -71,6 +76,8 @@ const mockGroups: Group[] = [
     description: "Thảo luận về thiết kế giao diện và trải nghiệm người dùng",
     coverImage: "/placeholder.svg?height=200&width=800",
     memberCount: 156,
+    postCount: 8,
+    tag: ["design", "ui", "ux"],
     isPrivate: false,
     tags: ["design", "ui", "ux"],
     createdAt: new Date("2024-01-10"),
@@ -496,29 +503,81 @@ export const api = {
 
   // Groups
   async getGroups(): Promise<Group[]> {
-    await delay(500)
-    return mockGroups
+    const token = tokenManager.getToken()
+    const res = await fetch(`${API_BASE}/groups`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      cache: "no-store",
+    })
+
+    const data: GroupsApiResponse = await res.json()
+    if (!res.ok) {
+      throw new Error((data && data.message) || "Không thể tải danh sách nhóm")
+    }
+
+    // Transform API data to match frontend interface
+    return data.data.groups.map((group: any) => ({
+      ...group,
+      createdAt: new Date(group.createdAt),
+      tags: group.tag || [], // Map 'tag' field to 'tags' for backward compatibility
+      isPrivate: false, // Default value as API doesn't provide this field
+      ownerId: "", // Default value as API doesn't provide this field
+      members: [], // Default value as API doesn't provide this field
+      postCount: group.postCount || 0, // Ensure postCount is available
+    }))
   },
 
-  async createGroup(payload: { name: string; description?: string; privacy?: "public" | "private" }): Promise<Group> {
+  async createGroup(payload: {
+    name: string
+    description?: string
+    tags?: string[]
+    privacy?: "public" | "private"
+  }): Promise<Group> {
     const token = tokenManager.getToken()
+
+    // Transform payload to match backend API
+    const requestBody: CreateGroupRequest = {
+      name: payload.name,
+      description: payload.description || "",
+      tags: payload.tags || [],
+    }
+
     const res = await fetch(`${API_BASE}/groups`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(requestBody),
       cache: "no-store",
     })
 
-    const data = await res.json()
+    const data: CreateGroupApiResponse = await res.json()
     if (!res.ok) {
-      throw new Error((data && (data.message || data.error)) || "Tạo nhóm thất bại")
+      throw new Error((data && data.message) || "Tạo nhóm thất bại")
     }
 
-    // Chuẩn hóa dữ liệu trả về
-    const group: Group = (data?.data || data) as Group
+    // Transform API response to frontend Group interface
+    const apiGroup = data.data
+    const group: Group = {
+      id: apiGroup.id,
+      name: apiGroup.name,
+      description: apiGroup.description,
+      coverImage: apiGroup.coverImage,
+      avatar: apiGroup.avatar,
+      memberCount: apiGroup.memberCount,
+      postCount: apiGroup.postCount,
+      tag: apiGroup.tags.map((t) => t.name),
+      tags: apiGroup.tags.map((t) => t.name), // For backward compatibility
+      createdAt: new Date(apiGroup.createdAt),
+      isPrivate: false, // Default as API doesn't provide this
+      ownerId: apiGroup.ownerId,
+      members: [], // Default as API doesn't provide this
+    }
+
     return group
   },
 
@@ -570,17 +629,94 @@ export const api = {
           (g) =>
             g.name.toLowerCase().includes(q.toLowerCase()) ||
             g.description.toLowerCase().includes(q.toLowerCase()) ||
-            g.tags.some((t) => t.toLowerCase().includes(q.toLowerCase()))
+            (g.tags && g.tags.some((t) => t.toLowerCase().includes(q.toLowerCase())))
         )
       }
       if (filter === "public") items = items.filter((g) => !g.isPrivate)
       if (filter === "private") items = items.filter((g) => g.isPrivate)
-      if (filter === "recent") items = items.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      if (filter === "recent") {
+        items = items.sort((a, b) => {
+          const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt)
+          const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt)
+          return dateB.getTime() - dateA.getTime()
+        })
+      }
       if (filter === "popular") items = items.sort((a, b) => b.memberCount - a.memberCount)
       const total = items.length
       const start = (page - 1) * limit
       const paged = items.slice(start, start + limit)
       return { items: paged, page, pageSize: limit, total }
+    }
+  },
+
+  // Search groups by keyword using GET with query parameter
+  async searchGroupsByKeyword(keyword: string): Promise<{ total: number; groups: Group[] }> {
+    const token = tokenManager.getToken()
+    const url = new URL(`${API_BASE}/groups/search`)
+    url.searchParams.set("keyword", keyword)
+
+    const res = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      cache: "no-store",
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error((data && (data.message || data.error)) || "Tìm kiếm nhóm thất bại")
+    }
+
+    // Transform API data to match frontend interface
+    const groups = data.data.groups.map((group: any) => ({
+      ...group,
+      createdAt: new Date(group.createdAt),
+      tags: group.tag || [], // Map 'tag' field to 'tags' for backward compatibility
+      isPrivate: false, // Default value as API doesn't provide this field
+      ownerId: "", // Default value as API doesn't provide this field
+      members: [], // Default value as API doesn't provide this field
+      postCount: group.postCount || 0, // Ensure postCount is available
+    }))
+
+    return {
+      total: data.data.total,
+      groups,
+    }
+  },
+
+  // Get joined groups for current user
+  async getJoinedGroups(): Promise<{ total: number; groups: Group[] }> {
+    const token = tokenManager.getToken()
+    const res = await fetch(`${API_BASE}/groups/joined`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      cache: "no-store",
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error((data && (data.message || data.error)) || "Không thể tải danh sách nhóm đã tham gia")
+    }
+
+    // Transform API data to match frontend interface
+    const groups = data.data.groups.map((group: any) => ({
+      ...group,
+      createdAt: new Date(group.createdAt),
+      tags: group.tag || [], // Map 'tag' field to 'tags' for backward compatibility
+      isPrivate: false, // Default value as API doesn't provide this field
+      ownerId: "", // Default value as API doesn't provide this field
+      members: [], // Default value as API doesn't provide this field
+      postCount: group.postCount || 0, // Ensure postCount is available
+    }))
+
+    return {
+      total: data.data.total,
+      groups,
     }
   },
 
