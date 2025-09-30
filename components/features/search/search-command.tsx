@@ -106,7 +106,9 @@ export function SearchCommand({ open, onOpenChange }: SearchCommandProps) {
                     <div className="flex items-center space-x-2">
                       <Avatar className="h-6 w-6">
                         <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                        <AvatarFallback>{user.displayName.charAt(0)}</AvatarFallback>
+                        <AvatarFallback>
+                          {user.displayName?.charAt(0) || user.username?.charAt(0) || "?"}
+                        </AvatarFallback>
                       </Avatar>
                       <div>
                         <div className="font-medium">{user.displayName}</div>

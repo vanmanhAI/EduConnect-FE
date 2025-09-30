@@ -313,7 +313,9 @@ export default function LeaderboardPage() {
                     {/* User Info */}
                     <Avatar className="h-10 w-10">
                       <AvatarImage src={entry.user.avatar || "/placeholder.svg"} />
-                      <AvatarFallback>{entry.user.displayName.charAt(0)}</AvatarFallback>
+                      <AvatarFallback>
+                        {entry.user.displayName?.charAt(0) || entry.user.username?.charAt(0) || "?"}
+                      </AvatarFallback>
                     </Avatar>
 
                     <div className="flex-1 min-w-0">
@@ -321,7 +323,7 @@ export default function LeaderboardPage() {
                         href={`/profile/${entry.user.id}`}
                         className="font-medium hover:text-educonnect-primary transition-colors"
                       >
-                        {entry.user.displayName}
+                        {entry.user.displayName || entry.user.username || "Unknown User"}
                       </Link>
                       <p className="text-sm text-muted-foreground">@{entry.user.username}</p>
                     </div>
