@@ -34,6 +34,8 @@ export default function GroupsPage() {
   const searchParams = useSearchParams()
   const [groups, setGroups] = useState<Group[]>([])
   const [filteredGroups, setFilteredGroups] = useState<Group[]>([])
+  const [joinedGroups, setJoinedGroups] = useState<Group[]>([])
+  const [joinedGroupsLoading, setJoinedGroupsLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
@@ -78,6 +80,7 @@ export default function GroupsPage() {
         const data = await api.getGroups()
         setGroups(data)
         setFilteredGroups(data)
+        setTotal(data.length)
       } catch (err) {
         setError("Không thể tải danh sách nhóm. Vui lòng thử lại.")
       } finally {
@@ -88,16 +91,41 @@ export default function GroupsPage() {
     loadGroups()
   }, [])
 
+  // Load joined groups when tab changes to "joined"
+  useEffect(() => {
+    if (activeTab === "joined" && joinedGroups.length === 0) {
+      const loadJoinedGroups = async () => {
+        try {
+          setJoinedGroupsLoading(true)
+          setError(null)
+          const data = await api.getJoinedGroups()
+          setJoinedGroups(data.groups)
+        } catch (err) {
+          // For joined groups tab, if API fails, treat as no joined groups instead of error
+          if (activeTab === "joined") {
+            setJoinedGroups([])
+          } else {
+            setError("Không thể tải danh sách nhóm đã tham gia. Vui lòng thử lại.")
+          }
+        } finally {
+          setJoinedGroupsLoading(false)
+        }
+      }
+
+      loadJoinedGroups()
+    }
+  }, [activeTab, joinedGroups.length])
+
   // Hydrate state from URL on first render
   useEffect(() => {
     const q = searchParams.get("q") || ""
-    const filter = searchParams.get("filter") || "all"
+    // const filter = searchParams.get("filter") || "all" // Disabled as filter not supported
     const tab = searchParams.get("tab") || "all"
     const pageParam = Number(searchParams.get("page") || "1")
     const savedHistory = JSON.parse(localStorage.getItem("groups_search_history") || "[]") as string[]
 
     setSearchQuery(q)
-    setSelectedFilter(filter)
+    // setSelectedFilter(filter) // Disabled
     setActiveTab(tab)
     setPage(Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1)
     setHistory(savedHistory.slice(0, 10))
@@ -110,9 +138,19 @@ export default function GroupsPage() {
       const seq = ++searchingSeqRef.current
       try {
         setSearching(true)
-        const res = await api.searchGroups({ q: query, filter, page: pageNum, limit: pageSize })
+
+        // If no search query, use the already loaded groups data (ignore filter for now)
+        if (!query.trim()) {
+          if (seq !== searchingSeqRef.current) return
+          setFilteredGroups(groups)
+          setTotal(groups.length)
+          setError(null)
+          return
+        }
+
+        const res = await api.searchGroupsByKeyword(query)
         if (seq !== searchingSeqRef.current) return
-        setFilteredGroups(res.items)
+        setFilteredGroups(res.groups)
         setTotal(res.total)
 
         if (query.trim()) {
@@ -134,11 +172,18 @@ export default function GroupsPage() {
       // invalidate pending results
       searchingSeqRef.current++
     }
-  }, [pageSize])
+  }, [pageSize, groups])
 
   useEffect(() => {
-    debouncedSearchRef.current?.(searchQuery, selectedFilter, page)
-  }, [searchQuery, selectedFilter, page])
+    // Only trigger search if there's an actual search query
+    if (searchQuery.trim()) {
+      debouncedSearchRef.current?.(searchQuery, selectedFilter, page)
+    } else {
+      // If no search query, use the original groups data
+      setFilteredGroups(groups)
+      setTotal(groups.length)
+    }
+  }, [searchQuery, selectedFilter, page, groups])
 
   // Sync searchInput with searchQuery on Enter or when searchQuery changes externally
   useEffect(() => {
@@ -149,7 +194,7 @@ export default function GroupsPage() {
   useEffect(() => {
     const params = new URLSearchParams()
     if (searchQuery.trim()) params.set("q", searchQuery)
-    if (selectedFilter && selectedFilter !== "all") params.set("filter", selectedFilter)
+    // Note: filter is not supported in new search API, so not including it
     if (activeTab && activeTab !== "all") params.set("tab", activeTab)
     if (page && page > 1) params.set("page", String(page))
 
@@ -158,10 +203,10 @@ export default function GroupsPage() {
     router.replace(target, { scroll: false })
   }, [searchQuery, selectedFilter, activeTab, page, pathname, router])
 
-  // Reset page when filters/search/tab change
+  // Reset page when search/tab change
   useEffect(() => {
     setPage(1)
-  }, [searchQuery, selectedFilter, activeTab])
+  }, [searchQuery, activeTab])
 
   // Handle scroll for sticky search bar
   useEffect(() => {
@@ -194,7 +239,7 @@ export default function GroupsPage() {
   const getGroupsByTab = () => {
     switch (activeTab) {
       case "joined":
-        return filteredGroups.filter((group) => group.joinStatus === "joined")
+        return joinedGroups
       case "popular":
         // If popular filter is not already applied, sort by member count
         if (selectedFilter !== "popular") {
@@ -209,6 +254,7 @@ export default function GroupsPage() {
   const handleClearFilter = () => {
     setSelectedFilter("all")
     setSearchQuery("")
+    setSearchInput("")
   }
 
   const getActiveFilterLabel = () => {
@@ -258,7 +304,30 @@ export default function GroupsPage() {
             <h1 className="text-2xl font-bold">Khám phá nhóm</h1>
             <p className="text-muted-foreground">Tham gia cộng đồng học tập và chia sẻ kiến thức</p>
           </div>
-          <CreateGroupDialog onCreated={() => debouncedSearchRef.current?.("", "all", 1)} />
+          <CreateGroupDialog
+            onCreated={async () => {
+              // Refresh the groups list after creating a new group
+              try {
+                setLoading(true)
+                const data = await api.getGroups()
+                setGroups(data)
+                setFilteredGroups(data)
+                setTotal(data.length)
+                setError(null) // Clear any previous errors
+              } catch (err) {
+                console.error("Failed to refresh groups after creation:", err)
+                setError("Không thể tải danh sách nhóm. Vui lòng thử lại.")
+                // If refresh fails, try to trigger search to update the list
+                try {
+                  debouncedSearchRef.current?.("", "all", 1)
+                } catch (searchErr) {
+                  console.error("Search fallback also failed:", searchErr)
+                }
+              } finally {
+                setLoading(false)
+              }
+            }}
+          />
         </div>
 
         {/* Search and Filters - Sticky */}
@@ -371,19 +440,21 @@ export default function GroupsPage() {
               )}
             </div>
             <div className="flex gap-2">
-              <Select value={selectedFilter} onValueChange={setSelectedFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <Filter className="mr-2 h-4 w-4" />
-                  <SelectValue placeholder="Bộ lọc" />
-                </SelectTrigger>
-                <SelectContent>
-                  {filterOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {!searchQuery.trim() && (
+                <Select value={selectedFilter} onValueChange={setSelectedFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <Filter className="mr-2 h-4 w-4" />
+                    <SelectValue placeholder="Bộ lọc" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filterOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               {(selectedFilter !== "all" || searchQuery.trim()) && (
                 <Button variant="outline" size="sm" onClick={handleClearFilter} className="px-3" title="Xóa bộ lọc">
                   <X className="h-4 w-4" />
@@ -403,7 +474,7 @@ export default function GroupsPage() {
           </TabsList>
 
           <TabsContent value={activeTab} className="mt-6">
-            {(loading && groups.length === 0) || searching ? (
+            {(loading && groups.length === 0) || (joinedGroupsLoading && activeTab === "joined") || searching ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[...Array(6)].map((_, i) => (
                   <GroupSkeleton key={i} />
@@ -450,8 +521,8 @@ export default function GroupsPage() {
               </div>
             )}
 
-            {/* Pagination */}
-            {!loading && !error && (
+            {/* Pagination - disabled when searching */}
+            {!loading && !error && !searchQuery.trim() && (
               <div className="mt-6 flex justify-center">
                 <Pagination>
                   <PaginationContent>
@@ -488,6 +559,7 @@ function CreateGroupDialog({ onCreated }: { onCreated?: () => void }) {
   const [submitting, setSubmitting] = useState(false)
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
+  const [tagsInput, setTagsInput] = useState("")
   const [privacy, setPrivacy] = useState<"public" | "private">("public")
   const [error, setError] = useState<string | null>(null)
 
@@ -496,24 +568,43 @@ function CreateGroupDialog({ onCreated }: { onCreated?: () => void }) {
       setError("Vui lòng nhập tên nhóm")
       return
     }
+
     try {
       setSubmitting(true)
       setError(null)
+
+      // Parse tags from input (split by comma, space, or semicolon)
+      const tags = tagsInput
+        .split(/[,;\s]+/)
+        .map((tag) => tag.trim())
+        .filter((tag) => tag.length > 0)
+        .map((tag) => (tag.startsWith("#") ? tag : `#${tag}`)) // Ensure tags start with #
+
       const created = await api.createGroup({
         name: name.trim(),
         description: description.trim() || undefined,
+        tags,
         privacy,
       })
+
       toast({ title: "Tạo nhóm thành công", description: `Đã tạo: ${created.name}` })
       setOpen(false)
       setName("")
       setDescription("")
+      setTagsInput("")
       setPrivacy("public")
-      onCreated?.()
-      // Điều hướng tới trang chi tiết nhóm nếu có id
-      if ((created as any)?.id) {
-        router.push(`/groups/${(created as any).id}`)
-      }
+
+      // Call onCreated first to refresh the groups list
+      await onCreated?.()
+
+      // Small delay to ensure data is refreshed before potential redirect
+      await new Promise((resolve) => setTimeout(resolve, 500))
+
+      // Only redirect if we're confident the group page exists
+      // For now, stay on groups list to show the newly created group
+      // if (created?.id) {
+      //   router.push(`/groups/${created.id}`)
+      // }
     } catch (e: any) {
       const msg = e?.message || "Tạo nhóm thất bại"
       setError(msg)
@@ -552,6 +643,17 @@ function CreateGroupDialog({ onCreated }: { onCreated?: () => void }) {
           <div className="space-y-2">
             <label className="text-sm font-medium">Mô tả (không bắt buộc)</label>
             <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Mô tả nhóm" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Tags (không bắt buộc)</label>
+            <Input
+              value={tagsInput}
+              onChange={(e) => setTagsInput(e.target.value)}
+              placeholder="Ví dụ: math, study, group (phân cách bằng dấu phẩy)"
+            />
+            <p className="text-xs text-muted-foreground">
+              Nhập các tag phân cách bằng dấu phẩy. Ví dụ: math, study, programming
+            </p>
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Quyền riêng tư</label>

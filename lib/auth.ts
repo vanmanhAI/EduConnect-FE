@@ -308,22 +308,26 @@ export const realAuthAPI = {
       })
 
       const data: LoginResponse = await response.json()
+      console.log("Login API response:", data) // Debug log
 
       if (response.ok && data.success) {
         // Backend returns success with user data and tokens
-        if (data.data && data.data.access_token && data.data.user) {
+        if (data.data && data.data.accessToken && data.data.user) {
           // Map backend user data to frontend format
           const frontendUser = {
-            id: crypto.randomUUID(), // Generate ID since backend doesn't provide it
+            id: data.data.user.id,
             displayName: data.data.user.displayName,
             username: data.data.user.username,
             email: credentials.email, // Use email from request since backend doesn't return it
             avatar: data.data.user.avatar,
+            points: data.data.user.points,
+            level: data.data.user.level,
+            experienceLevel: data.data.user.experienceLevel,
             isOnline: data.data.user.isOnline,
           }
 
           tokenManager.saveAuthData(
-            data.data.access_token,
+            data.data.accessToken,
             "", // No refresh token in this response
             frontendUser
           )
@@ -333,13 +337,13 @@ export const realAuthAPI = {
           message: data.message || "Đăng nhập thành công",
           data: {
             user: {
-              id: crypto.randomUUID(),
+              id: data.data?.user.id || "",
               displayName: data.data?.user.displayName || "",
               username: data.data?.user.username || "",
               email: credentials.email,
               avatar: data.data?.user.avatar || undefined,
             },
-            token: data.data?.access_token || "",
+            token: data.data?.accessToken || "",
             refreshToken: "",
           },
         }
@@ -371,22 +375,26 @@ export const realAuthAPI = {
       })
 
       const data: RegisterResponse = await response.json()
+      console.log("Register API response:", data) // Debug log
 
       if (response.ok && data.success) {
         // Backend returns success with user data and tokens
-        if (data.data && data.data.access_token && data.data.user) {
+        if (data.data && data.data.accessToken && data.data.user) {
           // Map backend user data to frontend format
           const frontendUser = {
-            id: crypto.randomUUID(), // Generate ID since backend doesn't provide it
+            id: data.data.user.id,
             displayName: data.data.user.displayName,
             username: data.data.user.username,
             email: userData.email, // Use email from request since backend doesn't return it
             avatar: data.data.user.avatar,
+            points: data.data.user.points,
+            level: data.data.user.level,
+            experienceLevel: data.data.user.experienceLevel,
             isOnline: data.data.user.isOnline,
           }
 
           tokenManager.saveAuthData(
-            data.data.access_token,
+            data.data.accessToken,
             "", // No refresh token in this response
             frontendUser
           )
@@ -396,13 +404,13 @@ export const realAuthAPI = {
           message: data.message || "Đăng ký thành công",
           data: {
             user: {
-              id: crypto.randomUUID(),
+              id: data.data?.user.id || "",
               displayName: data.data?.user.displayName || "",
               username: data.data?.user.username || "",
               email: userData.email,
               avatar: data.data?.user.avatar || undefined,
             },
-            token: data.data?.access_token || "",
+            token: data.data?.accessToken || "",
             refreshToken: "",
           },
         }

@@ -30,16 +30,58 @@ export interface Group {
   id: string
   name: string
   description: string
-  coverImage?: string
-  avatar?: string
+  coverImage?: string | null
+  avatar?: string | null
   memberCount: number
-  isPrivate: boolean
-  tags: string[]
-  createdAt: Date
-  ownerId: string
-  members: GroupMember[]
+  postCount: number
+  tag: string[]
+  createdAt: string | Date
+  isPrivate?: boolean
+  ownerId?: string
+  members?: GroupMember[]
   userRole?: "owner" | "mod" | "member" | null
   joinStatus?: "joined" | "pending" | "not-joined"
+  // Legacy compatibility
+  tags?: string[]
+}
+
+// API Response interfaces
+export interface GroupsApiResponse {
+  statusCode: number
+  success: boolean
+  message: string
+  data: {
+    total: number
+    groups: Group[]
+  }
+}
+
+export interface CreateGroupRequest {
+  name: string
+  description: string
+  tags: string[]
+}
+
+export interface CreateGroupApiResponse {
+  statusCode: number
+  success: boolean
+  message: string
+  data: {
+    id: string
+    name: string
+    slug: string
+    description: string
+    ownerId: string
+    coverImage?: string | null
+    avatar?: string | null
+    memberCount: number
+    postCount: number
+    createdAt: string
+    tags: Array<{
+      id: string
+      name: string
+    }>
+  }
 }
 
 export interface GroupMember {
@@ -195,11 +237,15 @@ export interface ApiResponse<T = any> {
 }
 
 export interface AuthData {
-  access_token: string
+  accessToken: string
   user: {
+    id: string
     username: string
     displayName: string
     avatar: string | null
+    points: number
+    level: number
+    experienceLevel: string
     isOnline: boolean
   }
 }
