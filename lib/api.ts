@@ -15,6 +15,12 @@ import type {
   GroupsApiResponse,
   CreateGroupRequest,
   CreateGroupApiResponse,
+  FollowersResponse,
+  FollowingResponse,
+  FollowerApiData,
+  UserProfileResponse,
+  FollowResponse,
+  UnfollowResponse,
 } from "@/types"
 import { tokenManager } from "@/lib/auth"
 
@@ -484,8 +490,56 @@ export const api = {
   },
 
   async getUser(id: string): Promise<User | null> {
-    await delay(200)
-    return mockUsers.find((u) => u.id === id) || null
+    const token = tokenManager.getToken()
+    const res = await fetch(`${API_BASE}/users/${id}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      cache: "no-store",
+    })
+
+    const data: UserProfileResponse = await res.json()
+    if (!res.ok) {
+      throw new Error((data && data.message) || "Không thể tải thông tin người dùng")
+    }
+
+    if (!data.data) {
+      return null
+    }
+
+    // Transform API response to match User type
+    const userData = data.data
+    const transformedUser: User = {
+      id: userData.id,
+      username: userData.username,
+      email: userData.email,
+      displayName: userData.displayName,
+      avatar: userData.avatar,
+      bio: userData.bio || undefined,
+      location: userData.location || undefined,
+      website: userData.website || undefined,
+      linkedin: userData.linkedin || undefined,
+      github: userData.github || undefined,
+      points: userData.points,
+      level: userData.level,
+      experiencePoints: userData.experiencePoints,
+      followersCount: userData.followersCount,
+      followingCount: userData.followingCount,
+      postsCount: userData.postsCount,
+      groupsCount: userData.groupsCount,
+      experienceLevel: userData.experienceLevel,
+      profileVisibility: userData.profileVisibility,
+      badges: [], // API doesn't provide badges
+      followers: userData.followersCount,
+      following: userData.followingCount,
+      joinedAt: new Date(userData.createdAt),
+      isOnline: userData.isOnline,
+      isFollowing: userData.isFollowing,
+    }
+
+    return transformedUser
   },
 
   async getUsers(): Promise<User[]> {
@@ -493,12 +547,130 @@ export const api = {
     return mockUsers
   },
 
+  async getFollowers(userId: string): Promise<User[]> {
+    const token = tokenManager.getToken()
+    const res = await fetch(`${API_BASE}/users/${userId}/followers`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      cache: "no-store",
+    })
+
+    const data: FollowersResponse = await res.json()
+    if (!res.ok) {
+      throw new Error((data && data.message) || "Không thể tải danh sách người theo dõi")
+    }
+
+    // Transform API response to match User type
+    const transformedFollowers: User[] = (data.data || []).map((follower: FollowerApiData) => ({
+      id: follower.id,
+      username: follower.username,
+      email: "", // API doesn't provide email
+      displayName: follower.displayname,
+      avatar: follower.avatar,
+      bio: follower.bio || undefined,
+      location: undefined,
+      website: undefined,
+      linkedin: undefined,
+      github: undefined,
+      points: follower.points,
+      level: follower.level,
+      experiencePoints: undefined,
+      followersCount: follower.followerscount,
+      followingCount: follower.followingcount,
+      postsCount: undefined,
+      groupsCount: undefined,
+      experienceLevel: undefined,
+      profileVisibility: follower.profilevisibility,
+      badges: [],
+      followers: follower.followerscount,
+      following: follower.followingcount,
+      joinedAt: new Date(), // API doesn't provide joinedAt
+      isOnline: follower.isonline,
+    }))
+
+    return transformedFollowers
+  },
+
+  async getFollowing(userId: string): Promise<User[]> {
+    const token = tokenManager.getToken()
+    const res = await fetch(`${API_BASE}/users/${userId}/following`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      cache: "no-store",
+    })
+
+    const data: FollowingResponse = await res.json()
+    if (!res.ok) {
+      throw new Error((data && data.message) || "Không thể tải danh sách người đang theo dõi")
+    }
+
+    // Transform API response to match User type
+    const transformedFollowing: User[] = (data.data || []).map((following: FollowerApiData) => ({
+      id: following.id,
+      username: following.username,
+      email: "", // API doesn't provide email
+      displayName: following.displayname,
+      avatar: following.avatar,
+      bio: following.bio || undefined,
+      location: undefined,
+      website: undefined,
+      linkedin: undefined,
+      github: undefined,
+      points: following.points,
+      level: following.level,
+      experiencePoints: undefined,
+      followersCount: following.followerscount,
+      followingCount: following.followingcount,
+      postsCount: undefined,
+      groupsCount: undefined,
+      experienceLevel: undefined,
+      profileVisibility: following.profilevisibility,
+      badges: [],
+      followers: following.followerscount,
+      following: following.followingcount,
+      joinedAt: new Date(), // API doesn't provide joinedAt
+      isOnline: following.isonline,
+    }))
+
+    return transformedFollowing
+  },
+
   async followUser(userId: string): Promise<void> {
-    await delay(300)
+    const token = tokenManager.getToken()
+    const res = await fetch(`${API_BASE}/users/${userId}/follow`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    })
+
+    const data: FollowResponse = await res.json()
+    if (!res.ok || !data.success) {
+      throw new Error((data && data.message) || "Không thể theo dõi người dùng")
+    }
   },
 
   async unfollowUser(userId: string): Promise<void> {
-    await delay(300)
+    const token = tokenManager.getToken()
+    const res = await fetch(`${API_BASE}/users/${userId}/unfollow`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    })
+
+    const data: UnfollowResponse = await res.json()
+    if (!res.ok || !data.success) {
+      throw new Error((data && data.message) || "Không thể bỏ theo dõi người dùng")
+    }
   },
 
   // Groups

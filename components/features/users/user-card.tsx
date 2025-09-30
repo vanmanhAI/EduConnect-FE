@@ -25,6 +25,9 @@ export function UserCard({ user, showFollowButton = true }: UserCardProps) {
     if (loading) return
 
     setLoading(true)
+    const previousIsFollowing = isFollowing
+    const previousFollowerCount = followerCount
+
     try {
       if (isFollowing) {
         await api.unfollowUser(user.id)
@@ -35,8 +38,23 @@ export function UserCard({ user, showFollowButton = true }: UserCardProps) {
         setIsFollowing(true)
         setFollowerCount((prev) => prev + 1)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to toggle follow:", error)
+      console.log("Error details:", {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+      })
+
+      // Revert state changes
+      setIsFollowing(previousIsFollowing)
+      setFollowerCount(previousFollowerCount)
+
+      // If error indicates user is already following, update state to reflect reality
+      if (error.message && error.message.includes("đã theo dõi")) {
+        console.log("User is already following, updating state")
+        setIsFollowing(true)
+      }
     } finally {
       setLoading(false)
     }
@@ -49,14 +67,14 @@ export function UserCard({ user, showFollowButton = true }: UserCardProps) {
           <div className="flex items-center space-x-3">
             <Avatar className="h-12 w-12">
               <AvatarImage src={user.avatar || "/placeholder.svg"} />
-              <AvatarFallback>{user.displayName.charAt(0)}</AvatarFallback>
+              <AvatarFallback>{user.displayName?.charAt(0) || user.username?.charAt(0) || "?"}</AvatarFallback>
             </Avatar>
             <div>
               <Link
                 href={`/profile/${user.id}`}
                 className="font-semibold hover:text-educonnect-primary transition-colors"
               >
-                {user.displayName}
+                {user.displayName || user.username || "Unknown User"}
               </Link>
               <p className="text-sm text-muted-foreground">@{user.username}</p>
             </div>

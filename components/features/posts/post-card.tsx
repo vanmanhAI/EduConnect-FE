@@ -67,12 +67,14 @@ export function PostCard({ post, showGroup = true, compact = false }: PostCardPr
           <div className="flex items-center space-x-3">
             <Avatar className="h-10 w-10">
               <AvatarImage src={post.author.avatar || "/placeholder.svg"} />
-              <AvatarFallback>{post.author.displayName.charAt(0)}</AvatarFallback>
+              <AvatarFallback>
+                {post.author.displayName?.charAt(0) || post.author.username?.charAt(0) || "?"}
+              </AvatarFallback>
             </Avatar>
             <div>
               <div className="flex flex-wrap items-center gap-x-2">
                 <Link href={`/profile/${post.author.id}`} className="font-medium hover:underline whitespace-nowrap">
-                  {post.author.displayName}
+                  {post.author.displayName || post.author.username || "Unknown User"}
                 </Link>
                 {showGroup && post.group && (
                   <div className="flex items-center gap-1 basis-full sm:basis-auto text-sm">

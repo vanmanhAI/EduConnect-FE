@@ -252,3 +252,50 @@ export interface AuthData {
 
 export interface LoginResponse extends ApiResponse<AuthData> {}
 export interface RegisterResponse extends ApiResponse<AuthData> {}
+
+export interface FollowerApiData {
+  id: string
+  username: string
+  displayname: string
+  avatar: string | null
+  bio: string | null
+  points: number
+  level: number
+  followerscount: number
+  followingcount: number
+  isonline: boolean
+  profilevisibility: string
+}
+
+export interface FollowersResponse extends ApiResponse<FollowerApiData[]> {}
+export interface FollowingResponse extends ApiResponse<FollowerApiData[]> {}
+
+export interface UserProfileApiData {
+  id: string
+  username: string
+  email: string
+  displayName: string
+  avatar: string | null
+  bio: string | null
+  location: string | null
+  website: string | null
+  linkedin: string | null
+  github: string | null
+  points: number
+  level: number
+  experiencePoints: number
+  followersCount: number
+  followingCount: number
+  postsCount: number
+  groupsCount: number
+  experienceLevel: string
+  isOnline: boolean
+  profileVisibility: string
+  isFollowing: boolean
+  createdAt: string
+}
+
+export interface UserProfileResponse extends ApiResponse<UserProfileApiData> {}
+
+export interface FollowResponse extends ApiResponse<null> {}
+export interface UnfollowResponse extends ApiResponse<null> {}

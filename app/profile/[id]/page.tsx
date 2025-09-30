@@ -8,10 +8,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
 import { AppShell } from "@/components/layout/app-shell"
 import { PostCard } from "@/components/features/posts/post-card"
 import { GroupCard } from "@/components/features/groups/group-card"
+import { UserCard } from "@/components/features/users/user-card"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { api } from "@/lib/api"
@@ -33,6 +35,12 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState("posts")
   const [isFollowing, setIsFollowing] = useState(false)
   const [followerCount, setFollowerCount] = useState(0)
+  const [followers, setFollowers] = useState<User[]>([])
+  const [followersLoading, setFollowersLoading] = useState(false)
+  const [followersDialogOpen, setFollowersDialogOpen] = useState(false)
+  const [following, setFollowing] = useState<User[]>([])
+  const [followingLoading, setFollowingLoading] = useState(false)
+  const [followingDialogOpen, setFollowingDialogOpen] = useState(false)
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -90,6 +98,7 @@ export default function ProfilePage() {
         setPosts(userPosts.slice(0, 5)) // Mock: user's posts
         setGroups(userGroups.slice(0, 3)) // Mock: user's groups
         setBadges(userBadges.slice(0, 4)) // Mock: user's badges
+        console.log("Main loadUserData - Setting isFollowing:", userData.isFollowing, "for user:", userData.displayName)
         setIsFollowing(userData.isFollowing || false)
         setFollowerCount(userData.followers)
       } catch (err) {
@@ -111,19 +120,111 @@ export default function ProfilePage() {
   const handleFollowToggle = async () => {
     if (!user) return
 
+    const previousIsFollowing = isFollowing
+    const previousFollowerCount = followerCount
+
     try {
       if (isFollowing) {
         await api.unfollowUser(user.id)
         setIsFollowing(false)
-        setFollowerCount((prev) => prev - 1)
+        // Reload follower count from API to ensure accuracy
+        try {
+          const updatedUser = await api.getUser(user.id)
+          if (updatedUser) {
+            console.log("Reloaded follower count:", updatedUser.followers, "previous:", followerCount)
+            setUser(updatedUser) // Update user object with latest data
+            setFollowerCount(updatedUser.followers)
+          }
+        } catch (reloadError) {
+          console.log("Failed to reload follower count, using optimistic update")
+          // Fallback to optimistic update if reload fails
+          setFollowerCount((prev) => prev - 1)
+        }
       } else {
         await api.followUser(user.id)
         setIsFollowing(true)
-        setFollowerCount((prev) => prev + 1)
+        // Reload follower count from API to ensure accuracy
+        try {
+          const updatedUser = await api.getUser(user.id)
+          if (updatedUser) {
+            console.log("Reloaded follower count after follow:", updatedUser.followers, "previous:", followerCount)
+            setUser(updatedUser) // Update user object with latest data
+            setFollowerCount(updatedUser.followers)
+          }
+        } catch (reloadError) {
+          console.log("Failed to reload follower count after follow, using optimistic update")
+          // Fallback to optimistic update if reload fails
+          setFollowerCount((prev) => prev + 1)
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to toggle follow:", error)
+      console.log("Error details:", {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+      })
+
+      // Revert state changes
+      setIsFollowing(previousIsFollowing)
+      setFollowerCount(previousFollowerCount)
+
+      // If error indicates user is already following, update state to reflect reality
+      if (error.message && error.message.includes("đã theo dõi")) {
+        console.log("User is already following, updating state")
+        setIsFollowing(true)
+        // Reload latest user data
+        if (user) {
+          try {
+            const updatedUser = await api.getUser(user.id)
+            if (updatedUser) {
+              setUser(updatedUser)
+              setFollowerCount(updatedUser.followers)
+            }
+          } catch (reloadError) {
+            console.error("Failed to reload user data:", reloadError)
+          }
+        }
+      }
     }
+  }
+
+  const loadFollowers = async () => {
+    if (!user) return
+
+    try {
+      setFollowersLoading(true)
+      const followersData = await api.getFollowers(user.id)
+      setFollowers(followersData)
+    } catch (error) {
+      console.error("Failed to load followers:", error)
+    } finally {
+      setFollowersLoading(false)
+    }
+  }
+
+  const loadFollowing = async () => {
+    if (!user) return
+
+    try {
+      setFollowingLoading(true)
+      const followingData = await api.getFollowing(user.id)
+      setFollowing(followingData)
+    } catch (error) {
+      console.error("Failed to load following:", error)
+    } finally {
+      setFollowingLoading(false)
+    }
+  }
+
+  const handleFollowersClick = () => {
+    setFollowersDialogOpen(true)
+    loadFollowers()
+  }
+
+  const handleFollowingClick = () => {
+    setFollowingDialogOpen(true)
+    loadFollowing()
   }
 
   const handleRetry = () => {
@@ -175,6 +276,12 @@ export default function ProfilePage() {
         setPosts(userPosts.slice(0, 5)) // Mock: user's posts
         setGroups(userGroups.slice(0, 3)) // Mock: user's groups
         setBadges(userBadges.slice(0, 4)) // Mock: user's badges
+        console.log(
+          "Retry loadUserData - Setting isFollowing:",
+          userData.isFollowing,
+          "for user:",
+          userData.displayName
+        )
         setIsFollowing(userData.isFollowing || false)
         setFollowerCount(userData.followers)
       } catch (err) {
@@ -338,16 +445,20 @@ export default function ProfilePage() {
               {/* Stats */}
               <div className="border-t pt-4">
                 <div className="flex flex-wrap items-center gap-6 text-sm">
-                  <div className="flex items-center space-x-1">
-                    <span className="font-semibold">
-                      {formatNumber(user.followersCount || followerCount || user.followers)}
-                    </span>
+                  <button
+                    onClick={handleFollowersClick}
+                    className="flex items-center space-x-1 hover:text-educonnect-primary transition-colors cursor-pointer"
+                  >
+                    <span className="font-semibold">{formatNumber(followerCount)}</span>
                     <span className="text-muted-foreground">người theo dõi</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
+                  </button>
+                  <button
+                    onClick={handleFollowingClick}
+                    className="flex items-center space-x-1 hover:text-educonnect-primary transition-colors cursor-pointer"
+                  >
                     <span className="font-semibold">{formatNumber(user.followingCount || user.following)}</span>
                     <span className="text-muted-foreground">đang theo dõi</span>
-                  </div>
+                  </button>
                   <div className="flex items-center space-x-1">
                     <span className="font-semibold">{formatNumber(user.postsCount || 0)}</span>
                     <span className="text-muted-foreground">bài viết</span>
@@ -468,6 +579,70 @@ export default function ProfilePage() {
           </Tabs>
         </div>
       </div>
+
+      {/* Followers Dialog */}
+      <Dialog open={followersDialogOpen} onOpenChange={setFollowersDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Người theo dõi</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {followersLoading ? (
+              <div className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex items-center space-x-3">
+                    <div className="h-12 w-12 rounded-full bg-muted animate-pulse" />
+                    <div className="space-y-2 flex-1">
+                      <div className="h-4 w-32 bg-muted rounded animate-pulse" />
+                      <div className="h-3 w-24 bg-muted rounded animate-pulse" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : followers.length === 0 ? (
+              <EmptyState title="Chưa có người theo dõi" description="Người dùng này chưa có ai theo dõi" />
+            ) : (
+              <div className="space-y-4">
+                {followers.map((follower) => (
+                  <UserCard key={follower.id} user={follower} showFollowButton={false} />
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Following Dialog */}
+      <Dialog open={followingDialogOpen} onOpenChange={setFollowingDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Đang theo dõi</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {followingLoading ? (
+              <div className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex items-center space-x-3">
+                    <div className="h-12 w-12 rounded-full bg-muted animate-pulse" />
+                    <div className="space-y-2 flex-1">
+                      <div className="h-4 w-32 bg-muted rounded animate-pulse" />
+                      <div className="h-3 w-24 bg-muted rounded animate-pulse" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : following.length === 0 ? (
+              <EmptyState title="Chưa theo dõi ai" description="Người dùng này chưa theo dõi ai cả" />
+            ) : (
+              <div className="space-y-4">
+                {following.map((followedUser) => (
+                  <UserCard key={followedUser.id} user={followedUser} showFollowButton={false} />
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   )
 }

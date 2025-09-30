@@ -116,11 +116,11 @@ export function RightSidebar({ children }: RightSidebarProps) {
               <div key={user.id} className="flex items-center space-x-3">
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                  <AvatarFallback>{user.displayName.charAt(0)}</AvatarFallback>
+                  <AvatarFallback>{user.displayName?.charAt(0) || user.username?.charAt(0) || "?"}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <Link href={`/profile/${user.id}`} className="text-sm font-medium hover:underline truncate block">
-                    {user.displayName}
+                    {user.displayName || user.username || "Unknown User"}
                   </Link>
                   <p className="text-xs text-muted-foreground">@{user.username}</p>
                 </div>
