@@ -2,9 +2,9 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
-import { useParams } from "next/navigation"
-import { Users, Settings, Share2, MoreHorizontal, Send, Smile, Paperclip } from "lucide-react"
+import { useState, useEffect, useMemo } from "react"
+import { useParams, useRouter } from "next/navigation"
+import { Users, Settings, Share2, MoreHorizontal, Send, Smile, Paperclip, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -12,12 +12,24 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { AppShell } from "@/components/layout/app-shell"
 import { PostCard } from "@/components/features/posts/post-card"
 import { UserCard } from "@/components/features/users/user-card"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
+import { EditGroupDialog } from "@/components/features/groups/edit-group-dialog"
 import { api } from "@/lib/api"
+import { tokenManager } from "@/lib/auth"
 import { formatNumber } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
 import { vi } from "date-fns/locale"
@@ -25,6 +37,7 @@ import type { Group, Post, User, ChatMessage } from "@/types"
 
 export default function GroupDetailPage() {
   const params = useParams()
+  const router = useRouter()
   const groupId = params.id as string
 
   const [group, setGroup] = useState<Group | null>(null)
@@ -35,26 +48,43 @@ export default function GroupDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("posts")
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false)
 
   useEffect(() => {
     const loadGroupData = async () => {
       try {
         setLoading(true)
         setError(null)
-        const [groupData, groupPosts, groupMembers] = await Promise.all([
-          api.getGroup(groupId),
-          api.getPosts(groupId),
-          api.getUsers(), // Mock: get all users as group members
-        ])
+        const [groupData, groupPosts] = await Promise.all([api.getGroup(groupId), api.getPosts(groupId)])
 
         if (!groupData) {
           setError("Không tìm thấy nhóm")
           return
         }
 
-        setGroup(groupData)
+        // Determine if current user is owner or has joined
+        let joinStatus: Group["joinStatus"] = groupData.joinStatus || "not-joined"
+        try {
+          const currentUser = tokenManager.getUser()
+          const ownerJoined = currentUser && groupData.ownerId === currentUser.id
+          let hasJoined = false
+          try {
+            const joinedGroups = await api.getJoinedGroups()
+            hasJoined = joinedGroups.groups?.some((g) => g.id === groupData.id) || false
+          } catch {
+            // ignore errors from joined groups API; default to not joined
+          }
+          if (ownerJoined || hasJoined) joinStatus = "joined"
+        } catch {
+          // ignore
+        }
+
+        setGroup({ ...groupData, joinStatus })
         setPosts(groupPosts)
-        setMembers(groupMembers.slice(0, 10)) // Mock: first 10 users as members
+        setMembers([]) // will be loaded when switching to Members tab
 
         const groupMessages = await api.getChatMessages(`group-${groupId}`)
         setMessages(groupMessages)
@@ -69,6 +99,39 @@ export default function GroupDetailPage() {
       loadGroupData()
     }
   }, [groupId])
+
+  // Check if current user is the group owner
+  const isOwner = useMemo(() => {
+    if (!group) return false
+    const currentUser = tokenManager.getUser()
+    return currentUser && group.ownerId === currentUser.id
+  }, [group])
+
+  const canViewMembers = useMemo(() => {
+    if (!group) return false
+    return isOwner || group.joinStatus === "joined"
+  }, [group, isOwner])
+
+  // Load members when Members tab is selected and allowed
+  useEffect(() => {
+    const loadMembers = async () => {
+      if (!group || activeTab !== "members" || !canViewMembers) return
+      try {
+        setIsLoadingMembers(true)
+        const backendMembers = await api.getGroupMembers(group.id)
+        if (backendMembers && backendMembers.length > 0) {
+          setMembers(backendMembers)
+        } else {
+          setMembers([])
+        }
+      } catch (e) {
+        console.error("Failed to load group members:", e)
+      } finally {
+        setIsLoadingMembers(false)
+      }
+    }
+    loadMembers()
+  }, [group, activeTab, canViewMembers])
 
   const handleJoinToggle = async () => {
     if (!group) return
@@ -120,6 +183,37 @@ export default function GroupDetailPage() {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       sendMessage()
+    }
+  }
+
+  const handleSaveGroupSettings = async (data: { name: string; description: string; tags: string[] }) => {
+    if (!group) return
+
+    try {
+      const updatedGroup = await api.updateGroup(group.id, data)
+      if (updatedGroup) {
+        setGroup(updatedGroup)
+      }
+    } catch (error) {
+      console.error("Failed to update group:", error)
+      throw error
+    }
+  }
+
+  const handleDeleteGroup = async () => {
+    if (!group) return
+
+    setIsDeleting(true)
+    try {
+      await api.deleteGroup(group.id)
+      // Redirect to groups page after successful deletion
+      router.push("/groups")
+    } catch (error: any) {
+      console.error("Failed to delete group:", error)
+      setError(error.message || "Không thể xóa nhóm. Vui lòng thử lại.")
+      setIsDeleteDialogOpen(false)
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -193,16 +287,10 @@ export default function GroupDetailPage() {
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Group Header */}
         <div className="space-y-6">
-          {/* Cover Image */}
-          {group.coverImage && (
-            <div className="aspect-[3/1] w-full rounded-lg overflow-hidden">
-              <img
-                src={group.coverImage || "/placeholder.svg"}
-                alt={group.name}
-                className="w-full h-full object-cover"
-              />
-            </div>
-          )}
+          {/* Cover Image - Always display with placeholder if no image */}
+          <div className="aspect-[3/1] w-full rounded-lg overflow-hidden bg-gradient-to-r from-educonnect-primary/10 to-educonnect-primary/5">
+            <img src={group.coverImage || "/placeholder.svg"} alt={group.name} className="w-full h-full object-cover" />
+          </div>
 
           {/* Group Info */}
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
@@ -232,11 +320,15 @@ export default function GroupDetailPage() {
                 {/* Tags */}
                 {group.tags && group.tags.length > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    {group.tags.map((tag) => (
-                      <Badge key={tag} variant="secondary" className="text-xs">
-                        #{tag}
-                      </Badge>
-                    ))}
+                    {group.tags.map((tag) => {
+                      const tagName = typeof tag === "string" ? tag : tag.name
+                      const tagId = typeof tag === "string" ? tag : tag.id
+                      return (
+                        <Badge key={tagId} variant="secondary" className="text-xs">
+                          {tagName.startsWith("#") ? tagName : `#${tagName}`}
+                        </Badge>
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -262,10 +354,21 @@ export default function GroupDetailPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Cài đặt nhóm
-                  </DropdownMenuItem>
+                  {isOwner && (
+                    <>
+                      <DropdownMenuItem onClick={() => setIsEditDialogOpen(true)}>
+                        <Settings className="mr-2 h-4 w-4" />
+                        Cài đặt nhóm
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setIsDeleteDialogOpen(true)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Xóa nhóm
+                      </DropdownMenuItem>
+                    </>
+                  )}
                   <DropdownMenuItem>Báo cáo nhóm</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -314,7 +417,17 @@ export default function GroupDetailPage() {
             </TabsContent>
 
             <TabsContent value="members" className="space-y-6 mt-6">
-              {members.length === 0 ? (
+              {!canViewMembers ? (
+                <div className="text-center py-10">
+                  <p className="text-muted-foreground">Vui lòng tham gia nhóm để xem danh sách thành viên.</p>
+                </div>
+              ) : isLoadingMembers ? (
+                <div className="grid md:grid-cols-2 gap-4">
+                  {Array.from({ length: 4 }).map((_, idx) => (
+                    <div key={idx} className="h-40 bg-muted/50 rounded-lg animate-pulse" />
+                  ))}
+                </div>
+              ) : members.length === 0 ? (
                 <EmptyState title="Chưa có thành viên nào" description="Nhóm này chưa có thành viên." />
               ) : (
                 <div className="grid md:grid-cols-2 gap-4">
@@ -415,6 +528,41 @@ export default function GroupDetailPage() {
           </Tabs>
         )}
       </div>
+
+      {/* Edit Group Dialog - Only for group owner */}
+      {group && isOwner && (
+        <EditGroupDialog
+          open={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          group={group}
+          onSave={handleSaveGroupSettings}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog - Only for group owner */}
+      {group && isOwner && (
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Bạn có chắc chắn muốn xóa nhóm này?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Hành động này không thể hoàn tác. Nhóm <strong>{group.name}</strong> và tất cả dữ liệu liên quan sẽ bị
+                xóa vĩnh viễn.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>Hủy</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteGroup}
+                disabled={isDeleting}
+                className="bg-destructive hover:bg-destructive/90"
+              >
+                {isDeleting ? "Đang xóa..." : "Xóa nhóm"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </AppShell>
   )
 }
