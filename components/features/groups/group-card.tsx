@@ -156,17 +156,21 @@ function GroupCardComponent({ group }: GroupCardProps) {
         {/* Tags */}
         {(group.tags || group.tag || []).length > 0 && (
           <div className="flex flex-wrap gap-1.5 sm:gap-2" role="list" aria-label="Thẻ tag của nhóm">
-            {(group.tags || group.tag || []).slice(0, 5).map((tag) => (
-              <Badge
-                key={tag}
-                variant="secondary"
-                className="text-xs transition-colors hover:bg-educonnect-primary/10"
-                role="listitem"
-                aria-label={`Tag ${tag}`}
-              >
-                {tag.startsWith("#") ? tag : `#${tag}`}
-              </Badge>
-            ))}
+            {(group.tags || group.tag || []).slice(0, 5).map((tag) => {
+              const tagName = typeof tag === "string" ? tag : tag.name
+              const tagId = typeof tag === "string" ? tag : tag.id
+              return (
+                <Badge
+                  key={tagId}
+                  variant="secondary"
+                  className="text-xs transition-colors hover:bg-educonnect-primary/10"
+                  role="listitem"
+                  aria-label={`Tag ${tagName}`}
+                >
+                  {tagName.startsWith("#") ? tagName : `#${tagName}`}
+                </Badge>
+              )
+            })}
             {(group.tags || group.tag || []).length > 5 && (
               <Badge
                 variant="outline"

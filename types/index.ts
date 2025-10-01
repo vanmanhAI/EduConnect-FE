@@ -29,6 +29,7 @@ export interface User {
 export interface Group {
   id: string
   name: string
+  slug?: string
   description: string
   coverImage?: string | null
   avatar?: string | null
@@ -41,8 +42,8 @@ export interface Group {
   members?: GroupMember[]
   userRole?: "owner" | "mod" | "member" | null
   joinStatus?: "joined" | "pending" | "not-joined"
-  // Legacy compatibility
-  tags?: string[]
+  // Legacy compatibility - can be array of strings or array of tag objects
+  tags?: string[] | Array<{ id: string; name: string }>
 }
 
 // API Response interfaces

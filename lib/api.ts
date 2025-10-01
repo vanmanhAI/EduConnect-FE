@@ -801,7 +801,11 @@ export const api = {
           (g) =>
             g.name.toLowerCase().includes(q.toLowerCase()) ||
             g.description.toLowerCase().includes(q.toLowerCase()) ||
-            (g.tags && g.tags.some((t) => t.toLowerCase().includes(q.toLowerCase())))
+            (g.tags &&
+              g.tags.some((t) => {
+                const tagStr = typeof t === "string" ? t : t.name
+                return tagStr.toLowerCase().includes(q.toLowerCase())
+              }))
         )
       }
       if (filter === "public") items = items.filter((g) => !g.isPrivate)
@@ -893,8 +897,144 @@ export const api = {
   },
 
   async getGroup(id: string): Promise<Group | null> {
-    await delay(300)
-    return mockGroups.find((g) => g.id === id) || null
+    try {
+      const token = tokenManager.getToken()
+      const res = await fetch(`${API_BASE}/groups/${id}`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      })
+
+      if (!res.ok) {
+        console.error("Failed to fetch group:", res.status)
+        return null
+      }
+
+      const data = await res.json()
+
+      if (!data.success || !data.data) {
+        return null
+      }
+
+      // Transform API response to Group interface
+      const apiGroup = data.data
+      const group: Group = {
+        id: apiGroup.id,
+        name: apiGroup.name,
+        slug: apiGroup.slug,
+        description: apiGroup.description,
+        coverImage: apiGroup.coverImage,
+        avatar: apiGroup.avatar,
+        memberCount: apiGroup.memberCount,
+        postCount: apiGroup.postCount,
+        ownerId: apiGroup.ownerId,
+        createdAt: apiGroup.createdAt,
+        // Transform tags array - handle both string[] and object[] formats
+        tag: Array.isArray(apiGroup.tags)
+          ? apiGroup.tags.map((t: any) => (typeof t === "string" ? t : t.name.replace(/^#/, "")))
+          : [],
+        tags: apiGroup.tags, // Keep original format
+        isPrivate: false,
+        userRole: null,
+        joinStatus: "not-joined",
+      }
+
+      return group
+    } catch (error) {
+      console.error("Error fetching group:", error)
+      return null
+    }
+  },
+
+  async updateGroup(
+    groupId: string,
+    data: { name: string; description: string; tags: string[] }
+  ): Promise<Group | null> {
+    try {
+      const token = tokenManager.getToken()
+      if (!token) {
+        throw new Error("Unauthorized: No token found")
+      }
+
+      const res = await fetch(`${API_BASE}/groups/${groupId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || "Failed to update group")
+      }
+
+      const response = await res.json()
+
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to update group")
+      }
+
+      // Transform API response to Group interface
+      const apiGroup = response.data
+      const group: Group = {
+        id: apiGroup.id,
+        name: apiGroup.name,
+        slug: apiGroup.slug,
+        description: apiGroup.description,
+        coverImage: apiGroup.coverImage,
+        avatar: apiGroup.avatar,
+        memberCount: apiGroup.memberCount,
+        postCount: apiGroup.postCount,
+        ownerId: apiGroup.ownerId,
+        createdAt: apiGroup.createdAt,
+        tag: Array.isArray(apiGroup.tags)
+          ? apiGroup.tags.map((t: any) => (typeof t === "string" ? t : t.name.replace(/^#/, "")))
+          : [],
+        tags: apiGroup.tags,
+        isPrivate: false,
+        userRole: "owner",
+        joinStatus: "joined",
+      }
+
+      return group
+    } catch (error) {
+      console.error("Error updating group:", error)
+      throw error
+    }
+  },
+
+  async deleteGroup(groupId: string): Promise<void> {
+    try {
+      const token = tokenManager.getToken()
+      if (!token) {
+        throw new Error("Unauthorized: No token found")
+      }
+
+      const res = await fetch(`${API_BASE}/groups/${groupId}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || "Failed to delete group")
+      }
+
+      const response = await res.json()
+
+      if (!response.success) {
+        throw new Error(response.message || "Failed to delete group")
+      }
+    } catch (error) {
+      console.error("Error deleting group:", error)
+      throw error
+    }
   },
 
   async joinGroup(groupId: string): Promise<void> {
@@ -903,6 +1043,49 @@ export const api = {
 
   async leaveGroup(groupId: string): Promise<void> {
     await delay(400)
+  },
+
+  // Group Members
+  async getGroupMembers(groupId: string): Promise<User[]> {
+    try {
+      const token = tokenManager.getToken()
+      const res = await fetch(`${API_BASE}/group-members/${groupId}`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      })
+
+      if (!res.ok) {
+        console.error("Failed to fetch group members:", res.status)
+        return []
+      }
+
+      const data = await res.json()
+      if (!data.success || !Array.isArray(data.data)) return []
+
+      const members: User[] = data.data.map((u: any) => ({
+        id: u.id,
+        username: u.username,
+        email: "", // not provided
+        displayName: u.displayname ?? u.username,
+        avatar: u.avatar ?? null,
+        bio: u.bio ?? "",
+        points: u.points ?? 0,
+        level: u.level ?? 1,
+        badges: [],
+        followers: u.followerscount ?? 0,
+        following: u.followingcount ?? 0,
+        joinedAt: new Date(),
+        isOnline: u.isonline ?? false,
+        profileVisibility: u.profilevisibility,
+      }))
+
+      return members
+    } catch (error) {
+      console.error("Error fetching group members:", error)
+      return []
+    }
   },
 
   // Posts
