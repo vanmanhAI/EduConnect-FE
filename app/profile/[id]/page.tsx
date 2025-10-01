@@ -99,8 +99,19 @@ export default function ProfilePage() {
         setGroups(userGroups.slice(0, 3)) // Mock: user's groups
         setBadges(userBadges.slice(0, 4)) // Mock: user's badges
         console.log("Main loadUserData - Setting isFollowing:", userData.isFollowing, "for user:", userData.displayName)
-        setIsFollowing(userData.isFollowing || false)
+        setIsFollowing(!!userData.isFollowing)
         setFollowerCount(userData.followers)
+
+        // Fallback: nếu API không trả đúng isFollowing, kiểm tra qua danh sách 'following' của user hiện tại
+        try {
+          if (!isOwnProfile && currentUser?.id && userData?.id) {
+            const myFollowing = await api.getFollowing(currentUser.id)
+            const actuallyFollowing = myFollowing.some((u) => u.id === userData!.id)
+            if (actuallyFollowing) setIsFollowing(true)
+          }
+        } catch (e) {
+          console.log("Fallback check following failed:", e)
+        }
       } catch (err) {
         console.error("Profile loading error:", err)
         setError("Không thể tải thông tin người dùng. Vui lòng thử lại.")
@@ -127,6 +138,7 @@ export default function ProfilePage() {
       if (isFollowing) {
         await api.unfollowUser(user.id)
         setIsFollowing(false)
+        setUser({ ...user, isFollowing: false })
         // Reload follower count from API to ensure accuracy
         try {
           const updatedUser = await api.getUser(user.id)
@@ -143,6 +155,7 @@ export default function ProfilePage() {
       } else {
         await api.followUser(user.id)
         setIsFollowing(true)
+        setUser({ ...user, isFollowing: true })
         // Reload follower count from API to ensure accuracy
         try {
           const updatedUser = await api.getUser(user.id)
@@ -173,6 +186,7 @@ export default function ProfilePage() {
       if (error.message && error.message.includes("đã theo dõi")) {
         console.log("User is already following, updating state")
         setIsFollowing(true)
+        setUser(user ? { ...user, isFollowing: true } : user)
         // Reload latest user data
         if (user) {
           try {
@@ -282,8 +296,19 @@ export default function ProfilePage() {
           "for user:",
           userData.displayName
         )
-        setIsFollowing(userData.isFollowing || false)
+        setIsFollowing(!!userData.isFollowing)
         setFollowerCount(userData.followers)
+
+        // Fallback: kiểm tra lại bằng danh sách following nếu cần
+        try {
+          if (!isOwnProfile && currentUser?.id && userData?.id) {
+            const myFollowing = await api.getFollowing(currentUser.id)
+            const actuallyFollowing = myFollowing.some((u) => u.id === userData!.id)
+            if (actuallyFollowing) setIsFollowing(true)
+          }
+        } catch (e) {
+          console.log("Retry fallback check following failed:", e)
+        }
       } catch (err) {
         console.error("Retry failed:", err)
         setError("Không thể tải thông tin người dùng. Vui lòng thử lại.")
