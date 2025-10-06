@@ -1267,4 +1267,279 @@ export const api = {
       ),
     }
   },
+
+  // Advanced search with filters using real API
+  async advancedSearch(filters: {
+    query: string
+    type?: "all" | "posts" | "groups" | "users"
+    sortBy?: "relevance" | "date" | "popularity" | "trending"
+    dateRange?: {
+      from?: Date
+      to?: Date
+    }
+    tags?: string[]
+    authors?: string[]
+    groups?: string[]
+    minLikes?: number
+    hasAttachments?: boolean
+    isFollowing?: boolean
+    page?: number
+    limit?: number
+  }): Promise<{
+    posts: Post[]
+    groups: Group[]
+    users: User[]
+    total: number
+    query: string
+    took: number
+    page: number
+    pageSize: number
+  }> {
+    const token = tokenManager.getToken()
+
+    try {
+      // Try real API first
+      const url = new URL(`${API_BASE}/search`)
+      url.searchParams.set("q", filters.query)
+      if (filters.type && filters.type !== "all") {
+        url.searchParams.set("type", filters.type)
+      }
+      if (filters.sortBy) {
+        url.searchParams.set("sort", filters.sortBy)
+      }
+      if (filters.page) {
+        url.searchParams.set("page", String(filters.page))
+      }
+      if (filters.limit) {
+        url.searchParams.set("limit", String(filters.limit))
+      }
+      if (filters.tags && filters.tags.length > 0) {
+        url.searchParams.set("tags", filters.tags.join(","))
+      }
+      if (filters.dateRange?.from) {
+        url.searchParams.set("from", filters.dateRange.from.toISOString())
+      }
+      if (filters.dateRange?.to) {
+        url.searchParams.set("to", filters.dateRange.to.toISOString())
+      }
+      if (filters.minLikes) {
+        url.searchParams.set("minLikes", String(filters.minLikes))
+      }
+      if (filters.hasAttachments) {
+        url.searchParams.set("hasAttachments", "true")
+      }
+
+      const response = await fetch(url.toString(), {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        cache: "no-store",
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        return {
+          posts: data.data?.posts || [],
+          groups: data.data?.groups || [],
+          users: data.data?.users || [],
+          total: data.data?.total || 0,
+          query: filters.query,
+          took: data.data?.took || 0,
+          page: filters.page || 1,
+          pageSize: filters.limit || 20,
+        }
+      }
+    } catch (error) {
+      console.warn("Real API search failed, falling back to mock:", error)
+    }
+
+    // Fallback to mock data
+    await delay(600)
+    let posts = [...mockPosts]
+    let groups = [...mockGroups]
+    let users = [...mockUsers]
+
+    // Filter by query
+    if (filters.query.trim()) {
+      const query = filters.query.toLowerCase()
+      posts = posts.filter(
+        (p) =>
+          p.title.toLowerCase().includes(query) ||
+          p.content.toLowerCase().includes(query) ||
+          p.tags.some((tag) => tag.toLowerCase().includes(query))
+      )
+      groups = groups.filter(
+        (g) =>
+          g.name.toLowerCase().includes(query) ||
+          g.description.toLowerCase().includes(query) ||
+          g.tags?.some((tag) => {
+            const tagStr = typeof tag === "string" ? tag : tag.name
+            return tagStr.toLowerCase().includes(query)
+          })
+      )
+      users = users.filter(
+        (u) =>
+          u.displayName.toLowerCase().includes(query) ||
+          u.username.toLowerCase().includes(query) ||
+          (u.bio && u.bio.toLowerCase().includes(query))
+      )
+    }
+
+    // Filter by type
+    if (filters.type === "posts") {
+      groups = []
+      users = []
+    } else if (filters.type === "groups") {
+      posts = []
+      users = []
+    } else if (filters.type === "users") {
+      posts = []
+      groups = []
+    }
+
+    // Filter by tags
+    if (filters.tags && filters.tags.length > 0) {
+      posts = posts.filter((post) => filters.tags!.some((tag) => post.tags.includes(tag)))
+      groups = groups.filter((group) =>
+        filters.tags!.some((tag) => {
+          if (!group.tags) return false
+          if (typeof group.tags[0] === "string") {
+            return (group.tags as string[]).includes(tag)
+          } else {
+            return (group.tags as Array<{ id: string; name: string }>).some((gt) => gt.name === tag)
+          }
+        })
+      )
+    }
+
+    // Filter by date range
+    if (filters.dateRange?.from || filters.dateRange?.to) {
+      const fromDate = filters.dateRange.from
+      const toDate = filters.dateRange.to
+
+      posts = posts.filter((post) => {
+        const postDate = new Date(post.createdAt)
+        if (fromDate && postDate < fromDate) return false
+        if (toDate && postDate > toDate) return false
+        return true
+      })
+
+      groups = groups.filter((group) => {
+        const groupDate = new Date(group.createdAt)
+        if (fromDate && groupDate < fromDate) return false
+        if (toDate && groupDate > toDate) return false
+        return true
+      })
+    }
+
+    // Filter by attachments
+    if (filters.hasAttachments) {
+      posts = posts.filter((post) => post.attachments.length > 0)
+    }
+
+    // Filter by minimum likes
+    if (filters.minLikes) {
+      posts = posts.filter((post) => post.likeCount >= filters.minLikes!)
+    }
+
+    // Sort results
+    if (filters.sortBy === "date") {
+      posts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      groups.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    } else if (filters.sortBy === "popularity") {
+      posts.sort((a, b) => b.likeCount - a.likeCount)
+      groups.sort((a, b) => b.memberCount - a.memberCount)
+      users.sort((a, b) => b.followers - a.followers)
+    } else if (filters.sortBy === "trending") {
+      // Simulate trending algorithm (recent + popular)
+      posts.sort((a, b) => {
+        const aScore =
+          a.likeCount * 0.7 + ((Date.now() - new Date(a.createdAt).getTime()) / (1000 * 60 * 60 * 24)) * 0.3
+        const bScore =
+          b.likeCount * 0.7 + ((Date.now() - new Date(b.createdAt).getTime()) / (1000 * 60 * 60 * 24)) * 0.3
+        return bScore - aScore
+      })
+    }
+
+    const total = posts.length + groups.length + users.length
+    const page = filters.page || 1
+    const pageSize = filters.limit || 20
+
+    return {
+      posts,
+      groups,
+      users,
+      total,
+      query: filters.query,
+      took: Math.random() * 200 + 100,
+      page,
+      pageSize,
+    }
+  },
+
+  // Get search suggestions using real API
+  async getSearchSuggestions(query: string): Promise<string[]> {
+    const token = tokenManager.getToken()
+
+    try {
+      // Try real API first
+      const response = await fetch(`${API_BASE}/search/suggestions?q=${encodeURIComponent(query)}`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        cache: "no-store",
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        return data.data || data.suggestions || []
+      }
+    } catch (error) {
+      console.warn("Real API suggestions failed, falling back to mock:", error)
+    }
+
+    // Fallback to mock data
+    await delay(200)
+
+    const popularTags = ["javascript", "react", "typescript", "nextjs", "tailwind", "nodejs", "python", "design"]
+
+    const allSuggestions = [
+      ...popularTags,
+      ...mockUsers.map((u) => u.displayName),
+      ...mockUsers.map((u) => u.username),
+      ...mockGroups.map((g) => g.name),
+      ...mockPosts.map((p) => p.title.split(" ").slice(0, 2).join(" ")),
+    ]
+
+    return allSuggestions.filter((suggestion) => suggestion.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
+  },
+
+  // Get trending searches using real API
+  async getTrendingSearches(): Promise<string[]> {
+    const token = tokenManager.getToken()
+
+    try {
+      // Try real API first
+      const response = await fetch(`${API_BASE}/search/trending`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        cache: "no-store",
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        return data.data || data.trending || []
+      }
+    } catch (error) {
+      console.warn("Real API trending failed, falling back to mock:", error)
+    }
+
+    // Fallback to mock data
+    await delay(300)
+    return ["react hooks", "javascript tips", "css grid", "typescript", "nextjs", "tailwind css", "nodejs", "python"]
+  },
 }
