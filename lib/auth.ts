@@ -4,7 +4,7 @@ import type { LoginResponse, RegisterResponse, AuthData } from "@/types"
 
 // Types for authentication
 export interface LoginRequest {
-  email: string
+  account: string
   password: string
 }
 
@@ -124,12 +124,12 @@ export const mockAuthAPI = {
     await delay(1000) // Simulate API call
 
     // Mock validation
-    if (!credentials.email || !credentials.password) {
+    if (!credentials.account || !credentials.password) {
       return {
         success: false,
         message: "Email và mật khẩu là bắt buộc",
         errors: [
-          { field: "email", message: "Email là bắt buộc" },
+          { field: "account", message: "Email là bắt buộc" },
           { field: "password", message: "Mật khẩu là bắt buộc" },
         ],
       }
@@ -137,21 +137,21 @@ export const mockAuthAPI = {
 
     // Mock email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(credentials.email)) {
+    if (!emailRegex.test(credentials.account)) {
       return {
         success: false,
         message: "Email không hợp lệ",
-        errors: [{ field: "email", message: "Email không hợp lệ" }],
+        errors: [{ field: "account", message: "Email không hợp lệ" }],
       }
     }
 
     // Mock authentication (replace with real API call)
-    if (credentials.email === "admin@educonnect.com" && credentials.password === "password123") {
+    if (credentials.account === "admin@educonnect.com" && credentials.password === "password123") {
       const mockUser = {
         id: "1",
         displayName: "Admin User",
         username: "admin",
-        email: credentials.email,
+        email: credentials.account,
         avatar: "/placeholder-user.jpg",
       }
 
@@ -177,7 +177,7 @@ export const mockAuthAPI = {
       success: false,
       message: "Email hoặc mật khẩu không chính xác",
       errors: [
-        { field: "email", message: "Email hoặc mật khẩu không chính xác" },
+        { field: "account", message: "Email hoặc mật khẩu không chính xác" },
         { field: "password", message: "Email hoặc mật khẩu không chính xác" },
       ],
     }
@@ -318,7 +318,7 @@ export const realAuthAPI = {
             id: data.data.user.id,
             displayName: data.data.user.displayName,
             username: data.data.user.username,
-            email: credentials.email, // Use email from request since backend doesn't return it
+            email: credentials.account, // Use account from request since backend doesn't return it
             avatar: data.data.user.avatar,
             points: data.data.user.points,
             level: data.data.user.level,
@@ -340,7 +340,7 @@ export const realAuthAPI = {
               id: data.data?.user.id || "",
               displayName: data.data?.user.displayName || "",
               username: data.data?.user.username || "",
-              email: credentials.email,
+              email: credentials.account,
               avatar: data.data?.user.avatar || undefined,
             },
             token: data.data?.accessToken || "",

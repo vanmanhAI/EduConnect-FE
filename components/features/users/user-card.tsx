@@ -6,7 +6,7 @@ import { UserPlus, UserCheck } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AvatarWithStatus } from "@/components/ui/avatar-with-status"
 import { formatNumber } from "@/lib/utils"
 import { api } from "@/lib/api"
 import type { User } from "@/types"
@@ -18,7 +18,7 @@ interface UserCardProps {
 
 export function UserCard({ user, showFollowButton = true }: UserCardProps) {
   const [isFollowing, setIsFollowing] = useState(user.isFollowing || false)
-  const [followerCount, setFollowerCount] = useState(user.followers)
+  const [followerCount, setFollowerCount] = useState(user.followers || user.followersCount || 0)
   const [loading, setLoading] = useState(false)
 
   const handleFollowToggle = async () => {
@@ -65,10 +65,14 @@ export function UserCard({ user, showFollowButton = true }: UserCardProps) {
       <CardContent className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center space-x-3">
-            <Avatar className="h-12 w-12">
-              <AvatarImage src={user.avatar || "/placeholder.svg"} />
-              <AvatarFallback>{user.displayName?.charAt(0) || user.username?.charAt(0) || "?"}</AvatarFallback>
-            </Avatar>
+            <AvatarWithStatus
+              src={user.avatar}
+              fallback={user.displayName?.charAt(0) || user.username?.charAt(0) || "?"}
+              alt={user.displayName || user.username || "User"}
+              isOnline={user.isOnline}
+              showStatus={user.profileVisibility === "public"}
+              className="h-12 w-12"
+            />
             <div>
               <Link
                 href={`/profile/${user.id}`}

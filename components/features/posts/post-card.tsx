@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AvatarWithStatus } from "@/components/ui/avatar-with-status"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { formatDate, truncateText } from "@/lib/utils"
 import { api } from "@/lib/api"
@@ -65,12 +66,14 @@ export function PostCard({ post, showGroup = true, compact = false }: PostCardPr
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-3">
-            <Avatar className="h-10 w-10">
-              <AvatarImage src={post.author.avatar || "/placeholder.svg"} />
-              <AvatarFallback>
-                {post.author.displayName?.charAt(0) || post.author.username?.charAt(0) || "?"}
-              </AvatarFallback>
-            </Avatar>
+            <AvatarWithStatus
+              src={post.author.avatar}
+              fallback={post.author.displayName?.charAt(0) || post.author.username?.charAt(0) || "?"}
+              alt={post.author.displayName || post.author.username || "Author"}
+              isOnline={post.author.isOnline}
+              showStatus={post.author.profileVisibility === "public"}
+              className="h-10 w-10"
+            />
             <div>
               <div className="flex flex-wrap items-center gap-x-2">
                 <Link href={`/profile/${post.author.id}`} className="font-medium hover:underline whitespace-nowrap">

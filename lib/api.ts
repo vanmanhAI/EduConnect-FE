@@ -522,21 +522,21 @@ export const api = {
       website: userData.website || undefined,
       linkedin: userData.linkedin || undefined,
       github: userData.github || undefined,
-      points: userData.points,
-      level: userData.level,
-      experiencePoints: userData.experiencePoints,
-      followersCount: userData.followersCount,
-      followingCount: userData.followingCount,
-      postsCount: userData.postsCount,
-      groupsCount: userData.groupsCount,
+      points: userData.points || 0,
+      level: userData.level || 1,
+      experiencePoints: userData.experiencePoints || 0,
+      followersCount: userData.followersCount || 0,
+      followingCount: userData.followingCount || 0,
+      postsCount: userData.postsCount || 0,
+      groupsCount: userData.groupsCount || 0,
       experienceLevel: userData.experienceLevel,
       profileVisibility: userData.profileVisibility,
       badges: [], // API doesn't provide badges
-      followers: userData.followersCount,
-      following: userData.followingCount,
+      followers: userData.followersCount || 0,
+      following: userData.followingCount || 0,
       joinedAt: new Date(userData.createdAt),
-      isOnline: userData.isOnline,
-      isFollowing: userData.isFollowing,
+      isOnline: userData.isOnline || false,
+      isFollowing: userData.isFollowing || false,
     }
 
     return transformedUser
@@ -564,31 +564,32 @@ export const api = {
     }
 
     // Transform API response to match User type
-    const transformedFollowers: User[] = (data.data || []).map((follower: FollowerApiData) => ({
+    const transformedFollowers: User[] = (data.data || []).map((follower: any) => ({
       id: follower.id,
       username: follower.username,
       email: "", // API doesn't provide email
-      displayName: follower.displayname,
+      displayName: follower.displayName,
       avatar: follower.avatar,
       bio: follower.bio || undefined,
       location: undefined,
       website: undefined,
       linkedin: undefined,
       github: undefined,
-      points: follower.points,
-      level: follower.level,
+      points: follower.points || 0,
+      level: follower.level || 1,
       experiencePoints: undefined,
-      followersCount: follower.followerscount,
-      followingCount: follower.followingcount,
+      followersCount: follower.followersCount || 0,
+      followingCount: follower.followingCount || 0,
       postsCount: undefined,
       groupsCount: undefined,
       experienceLevel: undefined,
-      profileVisibility: follower.profilevisibility,
+      profileVisibility: follower.profileVisibility,
       badges: [],
-      followers: follower.followerscount,
-      following: follower.followingcount,
+      followers: follower.followersCount || 0,
+      following: follower.followingCount || 0,
       joinedAt: new Date(), // API doesn't provide joinedAt
-      isOnline: follower.isonline,
+      isOnline: follower.isOnline || false,
+      isFollowing: follower.isFollowing || false,
     }))
 
     return transformedFollowers
@@ -611,31 +612,32 @@ export const api = {
     }
 
     // Transform API response to match User type
-    const transformedFollowing: User[] = (data.data || []).map((following: FollowerApiData) => ({
+    const transformedFollowing: User[] = (data.data || []).map((following: any) => ({
       id: following.id,
       username: following.username,
       email: "", // API doesn't provide email
-      displayName: following.displayname,
+      displayName: following.displayName,
       avatar: following.avatar,
       bio: following.bio || undefined,
       location: undefined,
       website: undefined,
       linkedin: undefined,
       github: undefined,
-      points: following.points,
-      level: following.level,
+      points: following.points || 0,
+      level: following.level || 1,
       experiencePoints: undefined,
-      followersCount: following.followerscount,
-      followingCount: following.followingcount,
+      followersCount: following.followersCount || 0,
+      followingCount: following.followingCount || 0,
       postsCount: undefined,
       groupsCount: undefined,
       experienceLevel: undefined,
-      profileVisibility: following.profilevisibility,
+      profileVisibility: following.profileVisibility,
       badges: [],
-      followers: following.followerscount,
-      following: following.followingcount,
+      followers: following.followersCount || 0,
+      following: following.followingCount || 0,
       joinedAt: new Date(), // API doesn't provide joinedAt
-      isOnline: following.isonline,
+      isOnline: following.isOnline || false,
+      isFollowing: following.isFollowing || false,
     }))
 
     return transformedFollowing
@@ -688,6 +690,12 @@ export const api = {
     const data: GroupsApiResponse = await res.json()
     if (!res.ok) {
       throw new Error((data && data.message) || "Không thể tải danh sách nhóm")
+    }
+
+    // Check if data structure is valid
+    if (!data.data || !data.data.groups || !Array.isArray(data.data.groups)) {
+      console.warn("Invalid groups data structure:", data)
+      return [] // Return empty array if data structure is invalid
     }
 
     // Transform API data to match frontend interface
@@ -845,6 +853,15 @@ export const api = {
       throw new Error((data && (data.message || data.error)) || "Tìm kiếm nhóm thất bại")
     }
 
+    // Check if data structure is valid
+    if (!data.data || !data.data.groups || !Array.isArray(data.data.groups)) {
+      console.warn("Invalid groups data structure:", data)
+      return {
+        total: 0,
+        groups: [],
+      }
+    }
+
     // Transform API data to match frontend interface
     const groups = data.data.groups.map((group: any) => ({
       ...group,
@@ -857,7 +874,7 @@ export const api = {
     }))
 
     return {
-      total: data.data.total,
+      total: data.data.total || 0,
       groups,
     }
   },
@@ -879,6 +896,15 @@ export const api = {
       throw new Error((data && (data.message || data.error)) || "Không thể tải danh sách nhóm đã tham gia")
     }
 
+    // Check if data structure is valid
+    if (!data.data || !data.data.groups || !Array.isArray(data.data.groups)) {
+      console.warn("Invalid groups data structure:", data)
+      return {
+        total: 0,
+        groups: [],
+      }
+    }
+
     // Transform API data to match frontend interface
     const groups = data.data.groups.map((group: any) => ({
       ...group,
@@ -891,7 +917,7 @@ export const api = {
     }))
 
     return {
-      total: data.data.total,
+      total: data.data.total || 0,
       groups,
     }
   },

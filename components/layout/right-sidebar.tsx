@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AvatarWithStatus } from "@/components/ui/avatar-with-status"
 import { api } from "@/lib/api"
 import type { User, Group } from "@/types"
 
@@ -114,10 +115,14 @@ export function RightSidebar({ children }: RightSidebarProps) {
           <CardContent className="space-y-3">
             {suggestedUsers.map((user) => (
               <div key={user.id} className="flex items-center space-x-3">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                  <AvatarFallback>{user.displayName?.charAt(0) || user.username?.charAt(0) || "?"}</AvatarFallback>
-                </Avatar>
+                <AvatarWithStatus
+                  src={user.avatar}
+                  fallback={user.displayName?.charAt(0) || user.username?.charAt(0) || "?"}
+                  alt={user.displayName || user.username || "User"}
+                  isOnline={user.isOnline}
+                  showStatus={user.profileVisibility === "public"}
+                  className="h-8 w-8"
+                />
                 <div className="flex-1 min-w-0">
                   <Link href={`/profile/${user.id}`} className="text-sm font-medium hover:underline truncate block">
                     {user.displayName || user.username || "Unknown User"}

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AvatarWithStatus } from "@/components/ui/avatar-with-status"
 import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
@@ -100,7 +101,7 @@ export default function ProfilePage() {
         setBadges(userBadges.slice(0, 4)) // Mock: user's badges
         console.log("Main loadUserData - Setting isFollowing:", userData.isFollowing, "for user:", userData.displayName)
         setIsFollowing(!!userData.isFollowing)
-        setFollowerCount(userData.followers)
+        setFollowerCount(userData.followers || userData.followersCount || 0)
 
         // Fallback: nếu API không trả đúng isFollowing, kiểm tra qua danh sách 'following' của user hiện tại
         try {
@@ -365,12 +366,15 @@ export default function ProfilePage() {
             <div className="p-4 md:p-6 space-y-6">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div className="flex items-start gap-4">
-                  <Avatar className="h-16 w-16 md:h-24 md:w-24 ring-2 ring-background">
-                    <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.displayName} />
-                    <AvatarFallback className="bg-gradient-to-br from-educonnect-primary to-educonnect-accent text-white">
-                      {user.displayName.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <AvatarWithStatus
+                    src={user.avatar}
+                    fallback={user.displayName.charAt(0)}
+                    alt={user.displayName}
+                    isOnline={user.isOnline}
+                    showStatus={user.profileVisibility === "public"}
+                    className="h-16 w-16 md:h-24 md:w-24 ring-2 ring-background"
+                    statusClassName="h-4 w-4 md:h-5 md:w-5"
+                  />
 
                   <div className="space-y-2 min-w-0">
                     <h1 className="text-xl md:text-2xl font-bold truncate">{user.displayName}</h1>

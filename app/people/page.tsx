@@ -19,6 +19,7 @@ import type { User } from "@/types"
 export default function PeoplePage() {
   const [users, setUsers] = useState<User[]>([])
   const [filteredUsers, setFilteredUsers] = useState<User[]>([])
+  const [followingUsers, setFollowingUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
@@ -45,6 +46,31 @@ export default function PeoplePage() {
     loadUsers()
   }, [])
 
+  // Load following users when switching to "following" tab
+  useEffect(() => {
+    if (activeTab === "following") {
+      const loadFollowingUsers = async () => {
+        try {
+          setLoading(true)
+          setError(null)
+          // Get current user from API
+          const currentUser = await api.getCurrentUser()
+          if (currentUser && currentUser.id) {
+            const following = await api.getFollowing(currentUser.id)
+            setFollowingUsers(following)
+          }
+        } catch (err) {
+          console.error("Error loading following users:", err)
+          setError("Không thể tải danh sách người đang theo dõi. Vui lòng thử lại.")
+        } finally {
+          setLoading(false)
+        }
+      }
+
+      loadFollowingUsers()
+    }
+  }, [activeTab])
+
   const debouncedSearch = debounce((query: string) => {
     if (!query.trim()) {
       setFilteredUsers(users)
@@ -69,9 +95,19 @@ export default function PeoplePage() {
     const loadUsers = async () => {
       try {
         setLoading(true)
-        const data = await api.getUsers()
-        setUsers(data)
-        setFilteredUsers(data)
+        if (activeTab === "following") {
+          // Reload following users
+          const currentUser = await api.getCurrentUser()
+          if (currentUser && currentUser.id) {
+            const following = await api.getFollowing(currentUser.id)
+            setFollowingUsers(following)
+          }
+        } else {
+          // Reload all users
+          const data = await api.getUsers()
+          setUsers(data)
+          setFilteredUsers(data)
+        }
       } catch (err) {
         setError("Không thể tải danh sách người dùng. Vui lòng thử lại.")
       } finally {
@@ -86,10 +122,20 @@ export default function PeoplePage() {
 
     switch (activeTab) {
       case "following":
-        result = result.filter((user) => user.isFollowing)
+        // Use the real following users from API
+        result = [...followingUsers]
+        // Apply search filter if there's a search query
+        if (searchQuery.trim()) {
+          result = result.filter(
+            (user) =>
+              user.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              (user.bio && user.bio.toLowerCase().includes(searchQuery.toLowerCase()))
+          )
+        }
         break
       case "popular":
-        result = result.sort((a, b) => b.followers - a.followers)
+        result = result.sort((a, b) => (b.followers || 0) - (a.followers || 0))
         break
       default:
         break
@@ -98,10 +144,10 @@ export default function PeoplePage() {
     // Apply sorting
     switch (sortBy) {
       case "points":
-        result = result.sort((a, b) => b.points - a.points)
+        result = result.sort((a, b) => (b.points || 0) - (a.points || 0))
         break
       case "followers":
-        result = result.sort((a, b) => b.followers - a.followers)
+        result = result.sort((a, b) => (b.followers || 0) - (a.followers || 0))
         break
       case "recent":
       default:
@@ -123,7 +169,7 @@ export default function PeoplePage() {
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Đang theo dõi:</span>
-          <span className="font-medium">{users.filter((u) => u.isFollowing).length}</span>
+          <span className="font-medium">{followingUsers.length}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Hoạt động hôm nay:</span>
