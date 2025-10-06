@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AvatarWithStatus } from "@/components/ui/avatar-with-status"
 import { SearchCommand } from "@/components/features/search/search-command"
 import { api } from "@/lib/api"
 import { useAuth } from "@/contexts/auth-context"
@@ -162,12 +163,14 @@ export function TopNav({ onMenuClick }: TopNavProps) {
                     variant="ghost"
                     className="relative h-8 w-8 rounded-full hover:ring-2 hover:ring-educonnect-primary/20 transition-all"
                   >
-                    <Avatar className="h-8 w-8 ring-2 ring-background">
-                      <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.displayName} />
-                      <AvatarFallback className="bg-gradient-to-br from-educonnect-primary to-educonnect-accent text-white">
-                        {user.displayName.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
+                    <AvatarWithStatus
+                      src={user.avatar}
+                      fallback={user.displayName.charAt(0)}
+                      alt={user.displayName}
+                      isOnline={user.isOnline}
+                      showStatus={user.profileVisibility === "public"}
+                      className="h-8 w-8 ring-2 ring-background"
+                    />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56" align="end" forceMount>

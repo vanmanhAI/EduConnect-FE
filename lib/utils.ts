@@ -20,10 +20,17 @@ export function formatDate(date: Date): string {
   return date.toLocaleDateString("vi-VN")
 }
 
-export function formatNumber(num: number): string {
-  if (num < 1000) return num.toString()
-  if (num < 1000000) return `${(num / 1000).toFixed(1)}K`
-  return `${(num / 1000000).toFixed(1)}M`
+export function formatNumber(num: number | undefined | null): string {
+  // Handle undefined, null, or NaN
+  if (num == null || isNaN(num)) return "0"
+
+  // Ensure num is a valid number
+  const validNum = Number(num)
+  if (!isFinite(validNum)) return "0"
+
+  if (validNum < 1000) return validNum.toString()
+  if (validNum < 1000000) return `${(validNum / 1000).toFixed(1)}K`
+  return `${(validNum / 1000000).toFixed(1)}M`
 }
 
 export function formatPoints(points: number): string {

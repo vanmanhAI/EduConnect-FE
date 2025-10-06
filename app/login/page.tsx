@@ -18,7 +18,7 @@ export default function LoginPage() {
   const router = useRouter()
   const { refreshUser } = useAuth()
   const [formData, setFormData] = useState<LoginRequest>({
-    email: "",
+    account: "",
     password: "",
   })
   const [showPassword, setShowPassword] = useState(false)
@@ -39,10 +39,10 @@ export default function LoginPage() {
   const validateForm = (): boolean => {
     const newErrors: { [key: string]: string } = {}
 
-    if (!formData.email) {
-      newErrors.email = "Email là bắt buộc"
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = "Email không hợp lệ"
+    if (!formData.account) {
+      newErrors.account = "Email là bắt buộc"
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.account)) {
+      newErrors.account = "Email không hợp lệ"
     }
 
     if (!formData.password) {
@@ -146,25 +146,25 @@ export default function LoginPage() {
             <CardContent className="space-y-5">
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="account">Email</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      id="email"
-                      name="email"
+                      id="account"
+                      name="account"
                       type="email"
                       placeholder="your@email.com"
-                      value={formData.email}
-                      onChange={(e) => handleInputChange("email", e.target.value)}
-                      className={`pl-10 h-11 ${errors.email ? "border-red-500 focus:border-red-500" : ""}`}
+                      value={formData.account}
+                      onChange={(e) => handleInputChange("account", e.target.value)}
+                      className={`pl-10 h-11 ${errors.account ? "border-red-500 focus:border-red-500" : ""}`}
                       autoComplete="email"
                       required
                     />
                   </div>
-                  {errors.email && (
+                  {errors.account && (
                     <p className="text-sm text-red-500 flex items-center gap-1">
                       <AlertCircle className="h-3 w-3" />
-                      {errors.email}
+                      {errors.account}
                     </p>
                   )}
                 </div>
