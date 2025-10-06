@@ -192,16 +192,22 @@ function GroupSearchResult({ group, query }: { group: Group; query: string }) {
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <span>{group.memberCount} thành viên</span>
               <span>{group.postCount} bài viết</span>
-              <span>{formatDate(group.createdAt)}</span>
+              <span>
+                {formatDate(typeof group.createdAt === "string" ? new Date(group.createdAt) : group.createdAt)}
+              </span>
             </div>
 
             {group.tags && group.tags.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {group.tags.slice(0, 5).map((tag) => (
-                  <Badge key={tag} variant="secondary" className="text-xs">
-                    #{tag}
-                  </Badge>
-                ))}
+                {group.tags.slice(0, 5).map((tag, index) => {
+                  const tagText = typeof tag === "string" ? tag : tag.name
+                  const tagKey = typeof tag === "string" ? tag : tag.id
+                  return (
+                    <Badge key={tagKey || index} variant="secondary" className="text-xs">
+                      #{tagText}
+                    </Badge>
+                  )
+                })}
               </div>
             )}
           </div>
