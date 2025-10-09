@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useToast } from "@/hooks/use-toast"
 import { formatNumber } from "@/lib/utils"
 import { api } from "@/lib/api"
 import type { Group } from "@/types"
@@ -16,6 +17,7 @@ interface GroupCardProps {
 }
 
 function GroupCardComponent({ group }: GroupCardProps) {
+  const { toast } = useToast()
   const [joinStatus, setJoinStatus] = useState(group.joinStatus || "not-joined")
   const [memberCount, setMemberCount] = useState(group.memberCount)
   const [loading, setLoading] = useState(false)
@@ -26,24 +28,46 @@ function GroupCardComponent({ group }: GroupCardProps) {
     if (loading) return
 
     setLoading(true)
+    const previousStatus = joinStatus
+    const previousCount = memberCount
+
     try {
       if (joinStatus === "joined") {
         await api.leaveGroup(group.id)
         setJoinStatus("not-joined")
         setMemberCount((prev) => prev - 1)
+        toast({
+          title: "Đã rời khỏi nhóm",
+          description: `Bạn đã rời khỏi nhóm ${group.name}`,
+        })
       } else {
         await api.joinGroup(group.id)
-        setJoinStatus(group.isPrivate ? "pending" : "joined")
+        const newStatus = group.isPrivate ? "pending" : "joined"
+        setJoinStatus(newStatus)
         if (!group.isPrivate) {
           setMemberCount((prev) => prev + 1)
         }
+        toast({
+          title: group.isPrivate ? "Yêu cầu đã gửi" : "Tham gia thành công",
+          description: group.isPrivate
+            ? `Yêu cầu tham gia nhóm ${group.name} đang chờ duyệt`
+            : `Bạn đã tham gia nhóm ${group.name}`,
+        })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to toggle group membership:", error)
+      // Revert state on error
+      setJoinStatus(previousStatus)
+      setMemberCount(previousCount)
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: error.message || "Không thể thực hiện thao tác. Vui lòng thử lại.",
+      })
     } finally {
       setLoading(false)
     }
-  }, [loading, joinStatus, group.id, group.isPrivate])
+  }, [loading, joinStatus, memberCount, group.id, group.isPrivate, group.name, toast])
 
   const handleCoverImageError = useCallback(() => {
     setCoverImageError(true)

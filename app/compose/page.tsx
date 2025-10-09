@@ -30,8 +30,8 @@ export default function ComposePage() {
   useEffect(() => {
     const loadGroups = async () => {
       try {
-        const data = await api.getGroups()
-        setGroups(data.filter((g) => g.joinStatus === "joined"))
+        const result = await api.getGroups(1, 50)
+        setGroups(result.groups.filter((g) => g.joinStatus === "joined"))
       } catch (error) {
         console.error("Failed to load groups:", error)
       }

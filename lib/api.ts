@@ -676,9 +676,9 @@ export const api = {
   },
 
   // Groups
-  async getGroups(): Promise<Group[]> {
+  async getGroups(page: number = 1, limit: number = 10): Promise<{ groups: Group[]; hasMore: boolean; total: number }> {
     const token = tokenManager.getToken()
-    const res = await fetch(`${API_BASE}/groups`, {
+    const res = await fetch(`${API_BASE}/groups?page=${page}&limit=${limit}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -687,27 +687,41 @@ export const api = {
       cache: "no-store",
     })
 
-    const data: GroupsApiResponse = await res.json()
+    const data: any = await res.json()
     if (!res.ok) {
       throw new Error((data && data.message) || "Không thể tải danh sách nhóm")
     }
 
-    // Check if data structure is valid
-    if (!data.data || !data.data.groups || !Array.isArray(data.data.groups)) {
+    // Check if data structure is valid (new format: data.items)
+    if (!data.data || !data.data.items || !Array.isArray(data.data.items)) {
       console.warn("Invalid groups data structure:", data)
-      return [] // Return empty array if data structure is invalid
+      return { groups: [], hasMore: false, total: 0 }
     }
 
     // Transform API data to match frontend interface
-    return data.data.groups.map((group: any) => ({
-      ...group,
+    const groups = data.data.items.map((group: any) => ({
+      id: group.id,
+      name: group.name,
+      slug: group.slug,
+      description: group.description || "",
+      coverImage: group.coverImage,
+      avatar: group.avatar,
+      ownerId: group.ownerId,
+      memberCount: group.memberCount || 0,
+      postCount: group.postCount || 0,
       createdAt: new Date(group.createdAt),
-      tags: group.tag || [], // Map 'tag' field to 'tags' for backward compatibility
-      isPrivate: false, // Default value as API doesn't provide this field
-      ownerId: "", // Default value as API doesn't provide this field
-      members: [], // Default value as API doesn't provide this field
-      postCount: group.postCount || 0, // Ensure postCount is available
+      tags: (group.tags || []).filter((tag: any) => tag && tag.name).map((tag: any) => tag.name),
+      isPrivate: false,
+      members: [],
+      userRole: group.isJoined ? "member" : null,
+      joinStatus: group.isJoined ? "joined" : "not-joined",
     }))
+
+    return {
+      groups,
+      hasMore: data.data.hasMore || false,
+      total: data.data.items.length,
+    }
   },
 
   async createGroup(payload: {
@@ -880,9 +894,12 @@ export const api = {
   },
 
   // Get joined groups for current user
-  async getJoinedGroups(): Promise<{ total: number; groups: Group[] }> {
+  async getJoinedGroups(
+    page: number = 1,
+    limit: number = 10
+  ): Promise<{ groups: Group[]; hasMore: boolean; total: number }> {
     const token = tokenManager.getToken()
-    const res = await fetch(`${API_BASE}/groups/joined`, {
+    const res = await fetch(`${API_BASE}/groups/joined?page=${page}&limit=${limit}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -896,29 +913,46 @@ export const api = {
       throw new Error((data && (data.message || data.error)) || "Không thể tải danh sách nhóm đã tham gia")
     }
 
-    // Check if data structure is valid
-    if (!data.data || !data.data.groups || !Array.isArray(data.data.groups)) {
+    // Check if data structure is valid (try both old format data.data.groups and new format data.items)
+    const items = data.data?.items || data.data?.groups
+    if (!items || !Array.isArray(items)) {
       console.warn("Invalid groups data structure:", data)
       return {
-        total: 0,
         groups: [],
+        hasMore: false,
+        total: 0,
       }
     }
 
     // Transform API data to match frontend interface
-    const groups = data.data.groups.map((group: any) => ({
-      ...group,
-      createdAt: new Date(group.createdAt),
-      tags: group.tag || [], // Map 'tag' field to 'tags' for backward compatibility
-      isPrivate: false, // Default value as API doesn't provide this field
-      ownerId: "", // Default value as API doesn't provide this field
-      members: [], // Default value as API doesn't provide this field
-      postCount: group.postCount || 0, // Ensure postCount is available
-    }))
+    const groups = items.map((group: any) => {
+      const processedTags = (group.tags || group.tag || [])
+        .filter((tag: any) => tag && (typeof tag === "string" ? tag : tag.name))
+        .map((tag: any) => (typeof tag === "string" ? tag : tag.name))
+      return {
+        id: group.id,
+        name: group.name,
+        slug: group.slug,
+        description: group.description || "",
+        coverImage: group.coverImage,
+        avatar: group.avatar,
+        ownerId: group.ownerId,
+        memberCount: group.memberCount || 0,
+        postCount: group.postCount || 0,
+        createdAt: new Date(group.createdAt),
+        tags: processedTags,
+        tag: processedTags, // Keep for backward compatibility
+        isPrivate: false,
+        members: [],
+        userRole: "member" as const,
+        joinStatus: "joined" as const,
+      }
+    })
 
     return {
-      total: data.data.total || 0,
       groups,
+      hasMore: data.data?.hasMore || false,
+      total: data.data?.total || items.length,
     }
   },
 
@@ -1064,11 +1098,35 @@ export const api = {
   },
 
   async joinGroup(groupId: string): Promise<void> {
-    await delay(400)
+    const token = tokenManager.getToken()
+    const res = await fetch(`${API_BASE}/group-members/${groupId}/join`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error(data.message || "Không thể tham gia nhóm")
+    }
   },
 
   async leaveGroup(groupId: string): Promise<void> {
-    await delay(400)
+    const token = tokenManager.getToken()
+    const res = await fetch(`${API_BASE}/group-members/${groupId}/leave`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error(data.message || "Không thể rời khỏi nhóm")
+    }
   },
 
   // Group Members
@@ -1094,17 +1152,20 @@ export const api = {
         id: u.id,
         username: u.username,
         email: "", // not provided
-        displayName: u.displayname ?? u.username,
+        displayName: u.displayName || u.displayname || u.username,
         avatar: u.avatar ?? null,
         bio: u.bio ?? "",
         points: u.points ?? 0,
         level: u.level ?? 1,
         badges: [],
-        followers: u.followerscount ?? 0,
-        following: u.followingcount ?? 0,
+        followers: u.followersCount || u.followerscount || 0,
+        following: u.followingCount || u.followingcount || 0,
+        followersCount: u.followersCount || u.followerscount || 0,
+        followingCount: u.followingCount || u.followingcount || 0,
         joinedAt: new Date(),
-        isOnline: u.isonline ?? false,
-        profileVisibility: u.profilevisibility,
+        isOnline: u.isOnline ?? u.isonline ?? false,
+        profileVisibility: u.profileVisibility || u.profilevisibility,
+        isFollowing: u.isFollowing ?? false,
       }))
 
       return members

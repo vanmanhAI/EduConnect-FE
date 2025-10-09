@@ -28,6 +28,7 @@ import { UserCard } from "@/components/features/users/user-card"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { EditGroupDialog } from "@/components/features/groups/edit-group-dialog"
+import { useToast } from "@/hooks/use-toast"
 import { api } from "@/lib/api"
 import { tokenManager } from "@/lib/auth"
 import { formatNumber } from "@/lib/utils"
@@ -36,6 +37,7 @@ import { vi } from "date-fns/locale"
 import type { Group, Post, User, ChatMessage } from "@/types"
 
 export default function GroupDetailPage() {
+  const { toast } = useToast()
   const params = useParams()
   const router = useRouter()
   const groupId = params.id as string
@@ -136,20 +138,40 @@ export default function GroupDetailPage() {
   const handleJoinToggle = async () => {
     if (!group) return
 
+    const previousGroup = group
+
     try {
       if (group.joinStatus === "joined") {
         await api.leaveGroup(group.id)
         setGroup({ ...group, joinStatus: "not-joined", memberCount: group.memberCount - 1 })
+        toast({
+          title: "Đã rời khỏi nhóm",
+          description: `Bạn đã rời khỏi nhóm ${group.name}`,
+        })
       } else {
         await api.joinGroup(group.id)
+        const newStatus = group.isPrivate ? "pending" : "joined"
         setGroup({
           ...group,
-          joinStatus: group.isPrivate ? "pending" : "joined",
+          joinStatus: newStatus,
           memberCount: group.isPrivate ? group.memberCount : group.memberCount + 1,
         })
+        toast({
+          title: group.isPrivate ? "Yêu cầu đã gửi" : "Tham gia thành công",
+          description: group.isPrivate
+            ? `Yêu cầu tham gia nhóm ${group.name} đang chờ duyệt`
+            : `Bạn đã tham gia nhóm ${group.name}`,
+        })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to toggle group membership:", error)
+      // Revert state on error
+      setGroup(previousGroup)
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: error.message || "Không thể thực hiện thao tác. Vui lòng thử lại.",
+      })
     }
   }
 

@@ -89,15 +89,15 @@ export default function ProfilePage() {
         }
 
         // Load các dữ liệu khác
-        const [userPosts, userGroups, userBadges] = await Promise.all([
+        const [userPosts, userGroupsResult, userBadges] = await Promise.all([
           api.getPosts(), // Mock: filter by user in real implementation
-          api.getGroups(), // Mock: filter by user groups in real implementation
+          api.getGroups(1, 3), // Mock: filter by user groups in real implementation
           api.getBadges(),
         ])
 
         setUser(userData)
         setPosts(userPosts.slice(0, 5)) // Mock: user's posts
-        setGroups(userGroups.slice(0, 3)) // Mock: user's groups
+        setGroups(userGroupsResult.groups) // Get groups from result
         setBadges(userBadges.slice(0, 4)) // Mock: user's badges
         console.log("Main loadUserData - Setting isFollowing:", userData.isFollowing, "for user:", userData.displayName)
         setIsFollowing(!!userData.isFollowing)
@@ -281,15 +281,15 @@ export default function ProfilePage() {
         }
 
         // Load các dữ liệu khác
-        const [userPosts, userGroups, userBadges] = await Promise.all([
+        const [userPosts, userGroupsResult, userBadges] = await Promise.all([
           api.getPosts(), // Mock: filter by user in real implementation
-          api.getGroups(), // Mock: filter by user groups in real implementation
+          api.getGroups(1, 3), // Mock: filter by user groups in real implementation
           api.getBadges(),
         ])
 
         setUser(userData)
         setPosts(userPosts.slice(0, 5)) // Mock: user's posts
-        setGroups(userGroups.slice(0, 3)) // Mock: user's groups
+        setGroups(userGroupsResult.groups) // Get groups from result
         setBadges(userBadges.slice(0, 4)) // Mock: user's badges
         console.log(
           "Retry loadUserData - Setting isFollowing:",

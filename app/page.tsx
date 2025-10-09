@@ -19,9 +19,9 @@ export default function HomePage() {
   useEffect(() => {
     const loadFeaturedContent = async () => {
       try {
-        const [posts, groups] = await Promise.all([api.getPosts(), api.getGroups()])
+        const [posts, groupsResult] = await Promise.all([api.getPosts(), api.getGroups(1, 3)])
         setFeaturedPosts(posts.slice(0, 3))
-        setFeaturedGroups(groups.slice(0, 3))
+        setFeaturedGroups(groupsResult.groups)
       } catch (error) {
         console.error("Failed to load featured content:", error)
       } finally {
