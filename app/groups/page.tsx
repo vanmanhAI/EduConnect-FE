@@ -9,14 +9,6 @@ import { Input } from "@/components/ui/input"
 // Popover removed for search suggestions to avoid focus issues
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination"
 import { Badge } from "@/components/ui/badge"
 import { AppShell } from "@/components/layout/app-shell"
 import { useToast } from "@/hooks/use-toast"
@@ -43,8 +35,12 @@ export default function GroupsPage() {
   const [isScrolled, setIsScrolled] = useState(false)
   const [selectedFilter, setSelectedFilter] = useState<string>("all")
   const [page, setPage] = useState<number>(1)
-  const [pageSize] = useState<number>(12)
-  const [total, setTotal] = useState<number>(0)
+  const [pageSize] = useState<number>(10)
+  const [hasMore, setHasMore] = useState<boolean>(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [joinedPage, setJoinedPage] = useState<number>(1)
+  const [joinedHasMore, setJoinedHasMore] = useState<boolean>(false)
+  const [joinedLoadingMore, setJoinedLoadingMore] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [searching, setSearching] = useState(false)
   const [searchInput, setSearchInput] = useState("")
@@ -77,10 +73,11 @@ export default function GroupsPage() {
       try {
         setLoading(true)
         setError(null)
-        const data = await api.getGroups()
-        setGroups(data)
-        setFilteredGroups(data)
-        setTotal(data.length)
+        const result = await api.getGroups(1, pageSize)
+        setGroups(result.groups)
+        setFilteredGroups(result.groups)
+        setHasMore(result.hasMore)
+        setPage(1)
       } catch (err) {
         setError("Không thể tải danh sách nhóm. Vui lòng thử lại.")
       } finally {
@@ -98,8 +95,10 @@ export default function GroupsPage() {
         try {
           setJoinedGroupsLoading(true)
           setError(null)
-          const data = await api.getJoinedGroups()
-          setJoinedGroups(data.groups)
+          const result = await api.getJoinedGroups(1, pageSize)
+          setJoinedGroups(result.groups)
+          setJoinedHasMore(result.hasMore)
+          setJoinedPage(1)
         } catch (err) {
           // For joined groups tab, if API fails, treat as no joined groups instead of error
           if (activeTab === "joined") {
@@ -114,20 +113,18 @@ export default function GroupsPage() {
 
       loadJoinedGroups()
     }
-  }, [activeTab, joinedGroups.length])
+  }, [activeTab, joinedGroups.length, pageSize])
 
   // Hydrate state from URL on first render
   useEffect(() => {
     const q = searchParams.get("q") || ""
     // const filter = searchParams.get("filter") || "all" // Disabled as filter not supported
     const tab = searchParams.get("tab") || "all"
-    const pageParam = Number(searchParams.get("page") || "1")
     const savedHistory = JSON.parse(localStorage.getItem("groups_search_history") || "[]") as string[]
 
     setSearchQuery(q)
     // setSelectedFilter(filter) // Disabled
     setActiveTab(tab)
-    setPage(Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1)
     setHistory(savedHistory.slice(0, 10))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -143,7 +140,6 @@ export default function GroupsPage() {
         if (!query.trim()) {
           if (seq !== searchingSeqRef.current) return
           setFilteredGroups(groups)
-          setTotal(groups.length)
           setError(null)
           return
         }
@@ -151,7 +147,6 @@ export default function GroupsPage() {
         const res = await api.searchGroupsByKeyword(query)
         if (seq !== searchingSeqRef.current) return
         setFilteredGroups(res.groups)
-        setTotal(res.total)
 
         if (query.trim()) {
           const normalized = query.trim()
@@ -181,7 +176,6 @@ export default function GroupsPage() {
     } else {
       // If no search query, use the original groups data
       setFilteredGroups(groups)
-      setTotal(groups.length)
     }
   }, [searchQuery, selectedFilter, page, groups])
 
@@ -196,17 +190,37 @@ export default function GroupsPage() {
     if (searchQuery.trim()) params.set("q", searchQuery)
     // Note: filter is not supported in new search API, so not including it
     if (activeTab && activeTab !== "all") params.set("tab", activeTab)
-    if (page && page > 1) params.set("page", String(page))
+    // page removed from URL as we use load more instead of page numbers
 
     const queryString = params.toString()
     const target = queryString ? `${pathname}?${queryString}` : pathname
     router.replace(target, { scroll: false })
-  }, [searchQuery, selectedFilter, activeTab, page, pathname, router])
+  }, [searchQuery, selectedFilter, activeTab, pathname, router])
 
-  // Reset page when search/tab change
+  // Reset page and reload groups when search/tab change
   useEffect(() => {
-    setPage(1)
-  }, [searchQuery, activeTab])
+    // Reset to page 1 when search query or tab changes
+    if (activeTab === "all" && !searchQuery.trim()) {
+      // Reload groups from beginning when returning to all tab without search
+      const reloadGroups = async () => {
+        try {
+          setLoading(true)
+          const result = await api.getGroups(1, pageSize)
+          setGroups(result.groups)
+          setFilteredGroups(result.groups)
+          setHasMore(result.hasMore)
+          setPage(1)
+        } catch (err) {
+          console.error("Failed to reload groups:", err)
+        } finally {
+          setLoading(false)
+        }
+      }
+      reloadGroups()
+    } else {
+      setPage(1)
+    }
+  }, [searchQuery, activeTab, pageSize])
 
   // Handle scroll for sticky search bar
   useEffect(() => {
@@ -219,14 +233,51 @@ export default function GroupsPage() {
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
+  const handleLoadMore = async () => {
+    if (loadingMore || !hasMore) return
+
+    try {
+      setLoadingMore(true)
+      const nextPage = page + 1
+      const result = await api.getGroups(nextPage, pageSize)
+      setGroups((prev) => [...prev, ...result.groups])
+      setFilteredGroups((prev) => [...prev, ...result.groups])
+      setHasMore(result.hasMore)
+      setPage(nextPage)
+    } catch (err) {
+      setError("Không thể tải thêm nhóm. Vui lòng thử lại.")
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
+  const handleLoadMoreJoined = async () => {
+    if (joinedLoadingMore || !joinedHasMore) return
+
+    try {
+      setJoinedLoadingMore(true)
+      const nextPage = joinedPage + 1
+      const result = await api.getJoinedGroups(nextPage, pageSize)
+      setJoinedGroups((prev) => [...prev, ...result.groups])
+      setJoinedHasMore(result.hasMore)
+      setJoinedPage(nextPage)
+    } catch (err) {
+      setError("Không thể tải thêm nhóm đã tham gia. Vui lòng thử lại.")
+    } finally {
+      setJoinedLoadingMore(false)
+    }
+  }
+
   const handleRetry = () => {
     setError(null)
     const loadGroups = async () => {
       try {
         setLoading(true)
-        const data = await api.getGroups()
-        setGroups(data)
-        setFilteredGroups(data)
+        const result = await api.getGroups(1, pageSize)
+        setGroups(result.groups)
+        setFilteredGroups(result.groups)
+        setHasMore(result.hasMore)
+        setPage(1)
       } catch (err) {
         setError("Không thể tải danh sách nhóm. Vui lòng thử lại.")
       } finally {
@@ -309,10 +360,11 @@ export default function GroupsPage() {
               // Refresh the groups list after creating a new group
               try {
                 setLoading(true)
-                const data = await api.getGroups()
-                setGroups(data)
-                setFilteredGroups(data)
-                setTotal(data.length)
+                const result = await api.getGroups(1, pageSize)
+                setGroups(result.groups)
+                setFilteredGroups(result.groups)
+                setHasMore(result.hasMore)
+                setPage(1)
                 setError(null) // Clear any previous errors
               } catch (err) {
                 console.error("Failed to refresh groups after creation:", err)
@@ -521,29 +573,29 @@ export default function GroupsPage() {
               </div>
             )}
 
-            {/* Pagination - disabled when searching */}
+            {/* Load More Button - show for both "all" and "joined" tabs when not searching */}
             {!loading && !error && !searchQuery.trim() && (
-              <div className="mt-6 flex justify-center">
-                <Pagination>
-                  <PaginationContent>
-                    <PaginationItem>
-                      <PaginationPrevious onClick={() => setPage((p) => Math.max(1, p - 1))} />
-                    </PaginationItem>
-                    {Array.from({ length: Math.max(1, Math.ceil(total / pageSize)) }, (_, i) => i + 1).map((p) => (
-                      <PaginationItem key={p}>
-                        <PaginationLink isActive={p === page} onClick={() => setPage(p)}>
-                          {p}
-                        </PaginationLink>
-                      </PaginationItem>
-                    ))}
-                    <PaginationItem>
-                      <PaginationNext
-                        onClick={() => setPage((cur) => Math.min(Math.max(1, Math.ceil(total / pageSize)), cur + 1))}
-                      />
-                    </PaginationItem>
-                  </PaginationContent>
-                </Pagination>
-              </div>
+              <>
+                {activeTab === "all" && hasMore && (
+                  <div className="mt-8 flex justify-center">
+                    <Button variant="outline" onClick={handleLoadMore} disabled={loadingMore} className="min-w-[200px]">
+                      {loadingMore ? "Đang tải..." : "Xem thêm"}
+                    </Button>
+                  </div>
+                )}
+                {activeTab === "joined" && joinedHasMore && (
+                  <div className="mt-8 flex justify-center">
+                    <Button
+                      variant="outline"
+                      onClick={handleLoadMoreJoined}
+                      disabled={joinedLoadingMore}
+                      className="min-w-[200px]"
+                    >
+                      {joinedLoadingMore ? "Đang tải..." : "Xem thêm"}
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </TabsContent>
         </Tabs>

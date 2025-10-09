@@ -31,9 +31,9 @@ export function RightSidebar({ children }: RightSidebarProps) {
   useEffect(() => {
     const loadSuggestions = async () => {
       try {
-        const [users, groups] = await Promise.all([api.getUsers(), api.getGroups()])
+        const [users, groupsResult] = await Promise.all([api.getUsers(), api.getGroups(1, 3)])
         setSuggestedUsers(users.slice(0, 3))
-        setSuggestedGroups(groups.slice(0, 3))
+        setSuggestedGroups(groupsResult.groups)
       } catch (error) {
         console.error("Failed to load suggestions:", error)
       }
