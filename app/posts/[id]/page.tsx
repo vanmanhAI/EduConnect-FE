@@ -4,26 +4,34 @@ import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import { AppShell } from "@/components/layout/app-shell"
 import { PostCard } from "@/components/features/posts/post-card"
+import { CommentItem } from "@/components/features/posts/comment-item"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { LoadingSkeleton } from "@/components/ui/loading-skeleton"
 import { ErrorState } from "@/components/ui/error-state"
+import { useToast } from "@/hooks/use-toast"
 import { api } from "@/lib/api"
-import { formatDistanceToNow } from "date-fns"
-import { vi } from "date-fns/locale"
-import { Send, Heart, MessageCircle } from "lucide-react"
+import { tokenManager } from "@/lib/auth"
+import { Send } from "lucide-react"
 import type { Post, Comment } from "@/types"
 
 export default function PostDetailPage() {
   const params = useParams()
   const postId = params.id as string
+  const { toast } = useToast()
 
   const [post, setPost] = useState<Post | null>(null)
   const [comments, setComments] = useState<Comment[]>([])
   const [newComment, setNewComment] = useState("")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [commentsPage, setCommentsPage] = useState(1)
+  const [hasMoreComments, setHasMoreComments] = useState(false)
+  const [loadingMoreComments, setLoadingMoreComments] = useState(false)
+
+  const currentUser = tokenManager.getUser()
 
   useEffect(() => {
     loadPost()
@@ -42,24 +50,69 @@ export default function PostDetailPage() {
     }
   }
 
-  const loadComments = async () => {
+  const loadComments = async (page: number = 1) => {
     try {
-      const data = await api.getComments(postId)
-      setComments(data)
+      const { comments: data, hasMore } = await api.getComments(postId, page, 10)
+
+      if (page === 1) {
+        setComments(data)
+      } else {
+        setComments((prev) => [...prev, ...data])
+      }
+
+      setHasMoreComments(hasMore)
+      setCommentsPage(page)
     } catch (err) {
       console.error("Failed to load comments:", err)
+      toast({
+        title: "Lỗi",
+        description: "Không thể tải bình luận",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleLoadMoreComments = async () => {
+    if (loadingMoreComments) return
+
+    setLoadingMoreComments(true)
+    try {
+      await loadComments(commentsPage + 1)
+    } finally {
+      setLoadingMoreComments(false)
     }
   }
 
   const handleAddComment = async () => {
-    if (!newComment.trim()) return
+    if (!newComment.trim()) {
+      toast({
+        title: "Lỗi",
+        description: "Vui lòng nhập nội dung bình luận",
+        variant: "destructive",
+      })
+      return
+    }
 
+    setIsSubmitting(true)
     try {
       await api.createComment(postId, newComment.trim())
       setNewComment("")
+
+      toast({
+        title: "Thành công",
+        description: "Đã thêm bình luận",
+      })
+
       loadComments()
     } catch (err) {
       console.error("Failed to add comment:", err)
+      toast({
+        title: "Lỗi",
+        description: "Không thể thêm bình luận. Vui lòng thử lại.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -96,8 +149,10 @@ export default function PostDetailPage() {
           <div className="mb-6">
             <div className="flex gap-3">
               <Avatar className="h-8 w-8">
-                <AvatarImage src="/placeholder.svg?height=32&width=32" />
-                <AvatarFallback>U</AvatarFallback>
+                <AvatarImage src={currentUser?.avatar || "/placeholder-user.jpg"} />
+                <AvatarFallback>
+                  {currentUser?.displayName?.charAt(0) || currentUser?.username?.charAt(0) || "U"}
+                </AvatarFallback>
               </Avatar>
               <div className="flex-1">
                 <Textarea
@@ -105,11 +160,12 @@ export default function PostDetailPage() {
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   className="min-h-[80px] resize-none"
+                  disabled={isSubmitting}
                 />
                 <div className="flex justify-end mt-2">
-                  <Button onClick={handleAddComment} disabled={!newComment.trim()} size="sm">
+                  <Button onClick={handleAddComment} disabled={!newComment.trim() || isSubmitting} size="sm">
                     <Send className="h-4 w-4 mr-2" />
-                    Gửi bình luận
+                    {isSubmitting ? "Đang gửi..." : "Gửi bình luận"}
                   </Button>
                 </div>
               </div>
@@ -118,38 +174,29 @@ export default function PostDetailPage() {
 
           {/* Comments List */}
           <div className="space-y-4">
-            {comments.map((comment) => (
-              <div key={comment.id} className="flex gap-3">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src="/placeholder.svg?height=32&width=32" />
-                  <AvatarFallback>{comment.authorId.charAt(0).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <div className="bg-muted rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-sm">Người dùng</span>
-                      <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(comment.createdAt), {
-                          addSuffix: true,
-                          locale: vi,
-                        })}
-                      </span>
-                    </div>
-                    <p className="text-sm">{comment.content}</p>
-                  </div>
-                  <div className="flex items-center gap-4 mt-2">
-                    <Button variant="ghost" size="sm" className="h-auto p-0 text-xs">
-                      <Heart className="h-3 w-3 mr-1" />
-                      Thích ({comment.likeCount})
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-auto p-0 text-xs">
-                      <MessageCircle className="h-3 w-3 mr-1" />
-                      Trả lời
+            {comments.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">Chưa có bình luận nào</p>
+            ) : (
+              <>
+                {comments.map((comment) => (
+                  <CommentItem
+                    key={comment.id}
+                    comment={comment}
+                    postId={postId}
+                    onCommentAdded={() => loadComments(1)}
+                  />
+                ))}
+
+                {/* Load More Button */}
+                {hasMoreComments && (
+                  <div className="flex justify-center pt-4">
+                    <Button variant="outline" onClick={handleLoadMoreComments} disabled={loadingMoreComments}>
+                      {loadingMoreComments ? "Đang tải..." : "Xem thêm bình luận"}
                     </Button>
                   </div>
-                </div>
-              </div>
-            ))}
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -1738,6 +1738,36 @@ export const api = {
     }
   },
 
+  async toggleReaction(
+    targetId: string,
+    reactionType: string = "like",
+    targetType: "post" | "comment" = "post"
+  ): Promise<{ action: "added" | "removed"; likeCount?: number }> {
+    const response = await fetch(`${API_BASE}/reactions/toggle`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenManager.getToken()}`,
+      },
+      body: JSON.stringify({
+        targetType,
+        targetId,
+        type: reactionType,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Không thể cập nhật reaction")
+    }
+
+    const result = await response.json()
+    return {
+      action: result.data.action,
+      likeCount: result.data.likeCount,
+    }
+  },
+
   async likePost(postId: string): Promise<void> {
     await delay(200)
   },
@@ -1747,24 +1777,218 @@ export const api = {
   },
 
   // Comments
-  async getComments(postId: string): Promise<Comment[]> {
-    await delay(400)
-    return []
+  async getComments(
+    postId: string,
+    page: number = 1,
+    limit: number = 10
+  ): Promise<{ comments: Comment[]; hasMore: boolean }> {
+    const response = await fetch(`${API_BASE}/comments?page=${page}&limit=${limit}&postId=${postId}`, {
+      headers: {
+        Authorization: `Bearer ${tokenManager.getToken()}`,
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error("Không thể tải bình luận")
+    }
+
+    const result = await response.json()
+    const items = result.data.items
+
+    // Transform BE data to frontend Comment interface
+    const transformComment = (item: any): Comment => ({
+      id: item.id,
+      content: item.content,
+      authorId: item.author.id,
+      author: {
+        id: item.author.id,
+        username: item.author.username,
+        displayName: item.author.displayName || item.author.username,
+        email: "",
+        avatar: item.author.avatar || "/placeholder-user.jpg",
+        bio: "",
+        location: "",
+        website: "",
+        followers: 0,
+        following: 0,
+        points: 0,
+        level: 1,
+        badges: [],
+        joinedAt: new Date(),
+      },
+      postId,
+      parentId: item.parentId || undefined,
+      replyToCommentId: item.replyToCommentId || undefined,
+      replyToUser: item.replyToUser
+        ? {
+            id: item.replyToUser.id,
+            username: item.replyToUser.username,
+            displayName: item.replyToUser.displayName || item.replyToUser.username,
+            avatar: item.replyToUser.avatar || "/placeholder-user.jpg",
+          }
+        : undefined,
+      replies: item.replies?.map(transformComment) || [],
+      reactions: [],
+      createdAt: new Date(item.createdAt),
+      updatedAt: item.updatedAt ? new Date(item.updatedAt) : undefined,
+      isLiked: false,
+      likeCount: item.likeCount || 0,
+      likes: item.likeCount || 0,
+    })
+
+    const comments: Comment[] = items.map(transformComment)
+
+    return {
+      comments,
+      hasMore: result.data.hasMore || false,
+    }
   },
 
-  async createComment(postId: string, content: string): Promise<Comment> {
-    await delay(300)
-    return {
-      id: Date.now().toString(),
-      content,
-      authorId: "1",
-      author: mockUsers[0],
+  async createComment(postId: string, content: string, replyToCommentId?: string): Promise<Comment> {
+    const requestBody: any = {
       postId,
+      content,
+    }
+
+    // Only include replyToCommentId if it's provided
+    if (replyToCommentId) {
+      requestBody.replyToCommentId = replyToCommentId
+    }
+
+    const response = await fetch(`${API_BASE}/comments`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenManager.getToken()}`,
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Không thể tạo bình luận")
+    }
+
+    const result = await response.json()
+    const item = result.data
+
+    // Transform BE data to frontend Comment interface
+    const comment: Comment = {
+      id: item.id,
+      content: item.content,
+      authorId: item.author.id,
+      author: {
+        id: item.author.id,
+        username: item.author.username,
+        displayName: item.author.displayName || item.author.username,
+        email: "",
+        avatar: item.author.avatar || "/placeholder-user.jpg",
+        bio: "",
+        location: "",
+        website: "",
+        followers: 0,
+        following: 0,
+        points: 0,
+        level: 1,
+        badges: [],
+        joinedAt: new Date(),
+      },
+      postId,
+      parentId: item.parentId || undefined,
+      replyToCommentId: item.replyToCommentId,
+      replyToUser: item.replyToUser,
+      replies: item.replies || [],
       reactions: [],
-      createdAt: new Date(),
+      createdAt: new Date(item.createdAt),
+      updatedAt: item.updatedAt ? new Date(item.updatedAt) : undefined,
       isLiked: false,
-      likeCount: 0,
-      likes: 0,
+      likeCount: item.likeCount || 0,
+      likes: item.likeCount || 0,
+    }
+
+    return comment
+  },
+
+  async updateComment(commentId: string, content: string): Promise<Comment> {
+    const response = await fetch(`${API_BASE}/comments/${commentId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenManager.getToken()}`,
+      },
+      body: JSON.stringify({ content }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Không thể cập nhật bình luận")
+    }
+
+    const result = await response.json()
+    const item = result.data
+
+    // Transform BE data to frontend Comment interface
+    const comment: Comment = {
+      id: item.id,
+      content: item.content,
+      authorId: item.author.id,
+      author: {
+        id: item.author.id,
+        username: item.author.username,
+        displayName: item.author.displayName || item.author.username,
+        email: "",
+        avatar: item.author.avatar || "/placeholder-user.jpg",
+        bio: "",
+        location: "",
+        website: "",
+        followers: 0,
+        following: 0,
+        points: 0,
+        level: 1,
+        badges: [],
+        joinedAt: new Date(),
+      },
+      postId: "", // Will be set by the component
+      parentId: item.parentId || undefined,
+      replyToCommentId: item.replyToCommentId || undefined,
+      replyToUser: item.replyToUser
+        ? {
+            id: item.replyToUser.id,
+            username: item.replyToUser.username,
+            displayName: item.replyToUser.displayName || item.replyToUser.username,
+            avatar: item.replyToUser.avatar || "/placeholder-user.jpg",
+          }
+        : undefined,
+      replies:
+        item.replies?.map((reply: any) => ({
+          ...reply,
+          author: {
+            ...reply.author,
+            avatar: reply.author.avatar || "/placeholder-user.jpg",
+          },
+        })) || [],
+      reactions: [],
+      createdAt: new Date(item.createdAt),
+      updatedAt: item.updatedAt ? new Date(item.updatedAt) : undefined,
+      isLiked: false,
+      likeCount: item.likeCount || 0,
+      likes: item.likeCount || 0,
+    }
+
+    return comment
+  },
+
+  async deleteComment(commentId: string): Promise<void> {
+    const response = await fetch(`${API_BASE}/comments/${commentId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${tokenManager.getToken()}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Không thể xóa bình luận")
     }
   },
 
