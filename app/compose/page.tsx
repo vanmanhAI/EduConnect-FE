@@ -12,9 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AppShell } from "@/components/layout/app-shell"
 import { api } from "@/lib/api"
 import { extractTags } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
 import type { Group } from "@/types"
 
 export default function ComposePage() {
+  const { toast } = useToast()
   const router = useRouter()
   const searchParams = useSearchParams()
   const groupId = searchParams.get("group")
@@ -46,26 +48,44 @@ export default function ComposePage() {
 
   const handleSave = async (publish = false) => {
     if (!title.trim() || !content.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: "Vui lòng nhập tiêu đề và nội dung bài viết",
+      })
       return
     }
 
     try {
       setSaving(true)
-      await api.createPost({
+      const postData: any = {
         title: title.trim(),
         content: content.trim(),
-        groupId: selectedGroupId || undefined,
         tags,
+      }
+
+      // Only include groupId if it's not "public"
+      if (selectedGroupId && selectedGroupId !== "public") {
+        postData.groupId = selectedGroupId
+      }
+
+      await api.createPost(postData)
+
+      toast({
+        title: "Thành công",
+        description: publish ? "Bài viết đã được đăng" : "Bài viết đã được lưu",
       })
 
       if (publish) {
         router.push("/feed")
-      } else {
-        // Show saved message
-        console.log("Bài viết đã được lưu")
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to save post:", error)
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: error.message || "Không thể tạo bài viết. Vui lòng thử lại.",
+      })
     } finally {
       setSaving(false)
     }
@@ -176,7 +196,7 @@ Hãy viết nội dung chất lượng để giúp đỡ cộng đồng!"
                   <div className="flex flex-wrap gap-2">
                     {tags.map((tag) => (
                       <Badge key={tag} variant="secondary" className="text-xs">
-                        #{tag}
+                        {tag}
                       </Badge>
                     ))}
                   </div>
@@ -204,7 +224,7 @@ Hãy viết nội dung chất lượng để giúp đỡ cộng đồng!"
             <ul className="text-sm text-muted-foreground space-y-1">
               <li>• Sử dụng tiêu đề rõ ràng, mô tả chính xác nội dung</li>
               <li>• Thêm thẻ (#hashtag) để người khác dễ tìm thấy</li>
-              <li>• Chia sẻ code với cú pháp \`\`\`javascript để highlight</li>
+              <li>• Chia sẻ code với cú pháp ```javascript để highlight</li>
               <li>• Sử dụng ví dụ cụ thể để minh họa ý tưởng</li>
             </ul>
           </div>

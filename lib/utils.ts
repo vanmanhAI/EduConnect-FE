@@ -53,9 +53,17 @@ export function truncateText(text: string, maxLength: number): string {
 }
 
 export function extractTags(content: string): string[] {
-  const tagRegex = /#(\w+)/g
+  // Match hashtags: # followed by letters, numbers, or underscore
+  const tagRegex = /#[\w]+/g
   const matches = content.match(tagRegex)
-  return matches ? matches.map((tag) => tag.slice(1)) : []
+
+  if (!matches) return []
+
+  // Remove duplicates and return with # prefix
+  const uniqueTags = [...new Set(matches)]
+
+  // Validate each tag: must start with # and only contain letters, numbers, or _
+  return uniqueTags.filter((tag) => /^#[\w]+$/.test(tag))
 }
 
 export function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
