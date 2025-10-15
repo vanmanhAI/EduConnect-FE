@@ -58,17 +58,27 @@ export function PostCard({ post, showGroup = true, compact = false, onPostUpdate
 
     setLoading(true)
     try {
-      if (isLiked) {
-        await api.unlikePost(post.id)
-        setIsLiked(false)
-        setLikeCount((prev) => prev - 1)
-      } else {
-        await api.likePost(post.id)
+      const result = await api.toggleReaction(post.id, "like", "post")
+
+      if (result.action === "added") {
         setIsLiked(true)
         setLikeCount((prev) => prev + 1)
+      } else {
+        setIsLiked(false)
+        setLikeCount((prev) => prev - 1)
+      }
+
+      // If backend returns the exact count, use it
+      if (result.likeCount !== undefined) {
+        setLikeCount(result.likeCount)
       }
     } catch (error) {
       console.error("Failed to toggle like:", error)
+      toast({
+        title: "Lỗi",
+        description: "Không thể cập nhật reaction. Vui lòng thử lại.",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }

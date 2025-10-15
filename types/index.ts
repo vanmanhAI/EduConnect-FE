@@ -117,9 +117,17 @@ export interface Comment {
   author: User
   postId: string
   parentId?: string
+  replyToCommentId?: string | null
+  replyToUser?: {
+    id: string
+    username: string
+    displayName: string
+    avatar: string | null
+  } | null
   replies?: Comment[]
   reactions: Reaction[]
   createdAt: Date
+  updatedAt?: Date
   isLiked?: boolean
   likeCount: number
   likes: number
