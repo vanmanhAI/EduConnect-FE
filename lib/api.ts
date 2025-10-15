@@ -298,6 +298,18 @@ const mockChatMessages: { [threadId: string]: ChatMessage[] } = {
   ],
 }
 
+// Helper function to transform tags from BE format to string[]
+const transformTags = (tags: any[]): string[] => {
+  if (!tags || !Array.isArray(tags)) return []
+  return tags
+    .map((tag: any) => {
+      if (typeof tag === "string") return tag
+      if (tag && typeof tag === "object" && tag.name) return tag.name
+      return ""
+    })
+    .filter((tag: string) => tag)
+}
+
 // API functions
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://educonnect-be-wx8t.onrender.com/api/v1"
 export const api = {
@@ -1181,31 +1193,549 @@ export const api = {
     return groupId ? mockPosts.filter((p) => p.groupId === groupId) : mockPosts
   },
 
-  async getPost(id: string): Promise<Post | null> {
-    await delay(300)
-    return mockPosts.find((p) => p.id === id) || null
+  async getFeedPosts(
+    page: number = 1,
+    limit: number = 10,
+    decayFactor: number = 1
+  ): Promise<{ posts: Post[]; hasMore: boolean }> {
+    const token = tokenManager.getToken()
+    const res = await fetch(`${API_BASE}/posts/feed/all?page=${page}&limit=${limit}&decayFactor=${decayFactor}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      cache: "no-store",
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error(data.message || "Không thể tải bài viết")
+    }
+
+    // Check if data structure is valid
+    if (!data.data || !data.data.items || !Array.isArray(data.data.items)) {
+      console.warn("Invalid feed posts data structure:", data)
+      return { posts: [], hasMore: false }
+    }
+
+    // Transform API data to match Post interface
+    const posts: Post[] = data.data.items.map((item: any) => ({
+      id: item.id,
+      title: item.title,
+      content: item.content,
+      slug: item.slug || undefined,
+      excerpt: item.excerpt || undefined,
+      authorId: item.author.id,
+      author: {
+        id: item.author.id,
+        username: item.author.username,
+        displayName: item.author.displayName,
+        avatar: item.author.avatar,
+        email: "",
+        points: 0,
+        level: 1,
+        badges: [],
+        followers: 0,
+        following: 0,
+        joinedAt: new Date(),
+      },
+      groupId: item.group?.id,
+      group: item.group
+        ? {
+            id: item.group.id,
+            name: item.group.name,
+            slug: item.group.slug,
+            description: "",
+            memberCount: 0,
+            postCount: 0,
+            tag: [],
+            tags: [],
+            createdAt: new Date(),
+          }
+        : undefined,
+      tags: item.tags?.map((tag: any) => tag.name || tag) || [],
+      reactions: item.reactions || [],
+      likeCount: item.likeCount || 0,
+      commentCount: item.commentCount || 0,
+      isLiked: item.isLiked || false,
+      attachments: [],
+      createdAt: new Date(item.createdAt),
+      updatedAt: new Date(item.updatedAt),
+    }))
+
+    return {
+      posts,
+      hasMore: data.data.hasMore || false,
+    }
   },
 
-  async createPost(data: Partial<Post>): Promise<Post> {
-    await delay(500)
-    const newPost: Post = {
-      id: Date.now().toString(),
-      title: data.title || "",
-      content: data.content || "",
-      authorId: "1",
-      author: mockUsers[0],
-      groupId: data.groupId,
-      group: data.groupId ? mockGroups.find((g) => g.id === data.groupId) : undefined,
-      tags: data.tags || [],
-      attachments: [],
-      reactions: [],
-      commentCount: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      isLiked: false,
-      likeCount: 0,
+  async getTrendingPosts(
+    page: number = 1,
+    limit: number = 10,
+    decayFactor: number = 1
+  ): Promise<{ posts: Post[]; hasMore: boolean }> {
+    const token = tokenManager.getToken()
+    const res = await fetch(`${API_BASE}/posts/feed/trending?page=${page}&limit=${limit}&decayFactor=${decayFactor}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      cache: "no-store",
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error(data.message || "Không thể tải bài viết thịnh hành")
     }
-    return newPost
+
+    // Check if data structure is valid
+    if (!data.data || !data.data.items || !Array.isArray(data.data.items)) {
+      console.warn("Invalid trending posts data structure:", data)
+      return { posts: [], hasMore: false }
+    }
+
+    // Transform API data to match Post interface (same as getFeedPosts)
+    const posts: Post[] = data.data.items.map((item: any) => ({
+      id: item.id,
+      title: item.title,
+      content: item.content,
+      slug: item.slug || undefined,
+      excerpt: item.excerpt || undefined,
+      authorId: item.author.id,
+      author: {
+        id: item.author.id,
+        username: item.author.username,
+        displayName: item.author.displayName,
+        avatar: item.author.avatar,
+        email: "",
+        points: 0,
+        level: 1,
+        badges: [],
+        followers: 0,
+        following: 0,
+        joinedAt: new Date(),
+      },
+      groupId: item.group?.id,
+      group: item.group
+        ? {
+            id: item.group.id,
+            name: item.group.name,
+            slug: item.group.slug,
+            description: "",
+            memberCount: 0,
+            postCount: 0,
+            tag: [],
+            tags: [],
+            createdAt: new Date(),
+          }
+        : undefined,
+      tags: item.tags?.map((tag: any) => tag.name || tag) || [],
+      reactions: item.reactions || [],
+      likeCount: item.likeCount || 0,
+      commentCount: item.commentCount || 0,
+      isLiked: item.isLiked || false,
+      attachments: [],
+      createdAt: new Date(item.createdAt),
+      updatedAt: new Date(item.updatedAt),
+    }))
+
+    return {
+      posts,
+      hasMore: data.data.hasMore || false,
+    }
+  },
+
+  async getFollowingPosts(
+    page: number = 1,
+    limit: number = 10,
+    decayFactor: number = 1
+  ): Promise<{ posts: Post[]; hasMore: boolean }> {
+    const token = tokenManager.getToken()
+    const res = await fetch(`${API_BASE}/posts/feed/following?page=${page}&limit=${limit}&decayFactor=${decayFactor}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      cache: "no-store",
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error(data.message || "Không thể tải bài viết từ người theo dõi")
+    }
+
+    // Check if data structure is valid
+    if (!data.data || !data.data.items || !Array.isArray(data.data.items)) {
+      console.warn("Invalid following posts data structure:", data)
+      return { posts: [], hasMore: false }
+    }
+
+    // Transform API data to match Post interface (same as getFeedPosts & getTrendingPosts)
+    const posts: Post[] = data.data.items.map((item: any) => ({
+      id: item.id,
+      title: item.title,
+      content: item.content,
+      slug: item.slug || undefined,
+      excerpt: item.excerpt || undefined,
+      authorId: item.author.id,
+      author: {
+        id: item.author.id,
+        username: item.author.username,
+        displayName: item.author.displayName,
+        avatar: item.author.avatar,
+        email: "",
+        points: 0,
+        level: 1,
+        badges: [],
+        followers: 0,
+        following: 0,
+        joinedAt: new Date(),
+      },
+      groupId: item.group?.id,
+      group: item.group
+        ? {
+            id: item.group.id,
+            name: item.group.name,
+            slug: item.group.slug,
+            description: "",
+            memberCount: 0,
+            postCount: 0,
+            tag: [],
+            tags: [],
+            createdAt: new Date(),
+          }
+        : undefined,
+      tags: item.tags?.map((tag: any) => tag.name || tag) || [],
+      reactions: item.reactions || [],
+      likeCount: item.likeCount || 0,
+      commentCount: item.commentCount || 0,
+      isLiked: item.isLiked || false,
+      attachments: [],
+      createdAt: new Date(item.createdAt),
+      updatedAt: new Date(item.updatedAt),
+    }))
+
+    return {
+      posts,
+      hasMore: data.data.hasMore || false,
+    }
+  },
+
+  async getGroupPosts(
+    groupId: string,
+    page: number = 1,
+    limit: number = 10,
+    decayFactor: number = 1
+  ): Promise<{ posts: Post[]; hasMore: boolean }> {
+    const response = await fetch(
+      `${API_BASE}/posts/by-group/${groupId}?page=${page}&limit=${limit}&decayFactor=${decayFactor}`,
+      {
+        headers: {
+          Authorization: `Bearer ${tokenManager.getToken()}`,
+        },
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error("Không thể tải bài viết của nhóm")
+    }
+
+    const data = await response.json()
+
+    // Transform BE data to frontend Post interface
+    const posts: Post[] = data.data.items.map((item: any) => ({
+      id: item.id,
+      title: item.title,
+      content: item.content,
+      excerpt: item.excerpt || item.content.substring(0, 200),
+      slug: item.slug,
+      authorId: item.author.id,
+      author: {
+        id: item.author.id,
+        username: item.author.username,
+        displayName: item.author.displayName || item.author.username,
+        name: item.author.displayName || item.author.username,
+        email: "",
+        avatar: item.author.avatar || "/placeholder-user.jpg",
+        bio: "",
+        location: "",
+        website: "",
+        followers: 0,
+        following: 0,
+        joinedAt: new Date(),
+      },
+      group: item.group
+        ? {
+            id: item.group.id,
+            name: item.group.name,
+            slug: item.group.slug,
+            description: "",
+            memberCount: 0,
+            postCount: 0,
+            tag: [],
+            tags: [],
+            createdAt: new Date(),
+          }
+        : undefined,
+      tags: item.tags?.map((tag: any) => tag.name || tag) || [],
+      reactions: item.reactions || [],
+      likeCount: item.likeCount || 0,
+      commentCount: item.commentCount || 0,
+      isLiked: item.isLiked || false,
+      attachments: [],
+      createdAt: new Date(item.createdAt),
+      updatedAt: new Date(item.updatedAt),
+    }))
+
+    return {
+      posts,
+      hasMore: data.data.hasMore || false,
+    }
+  },
+
+  async getPost(id: string): Promise<Post | null> {
+    const response = await fetch(`${API_BASE}/posts/${id}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenManager.getToken()}`,
+      },
+    })
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null
+      }
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Không thể tải bài viết")
+    }
+
+    const result = await response.json()
+    const item = result.data
+
+    // Transform BE data to frontend Post interface
+    const post: Post = {
+      id: item.id,
+      title: item.title,
+      content: item.content,
+      author: {
+        id: item.author.id,
+        username: item.author.username,
+        displayName: item.author.displayName || item.author.username,
+        email: "",
+        avatar: item.author.avatar || "/placeholder-user.jpg",
+        bio: "",
+        location: "",
+        website: "",
+        followers: 0,
+        following: 0,
+        points: 0,
+        level: 1,
+        badges: [],
+        joinedAt: new Date(),
+      },
+      authorId: item.author.id,
+      group: item.group
+        ? {
+            id: item.group.id,
+            name: item.group.name,
+            slug: item.group.slug,
+            description: "",
+            memberCount: 0,
+            postCount: 0,
+            tag: [],
+            tags: [],
+            createdAt: new Date(),
+          }
+        : undefined,
+      groupId: item.group?.id,
+      tags: transformTags(item.tags),
+      reactions: item.reactions || [],
+      likeCount: item.likeCount || 0,
+      commentCount: item.commentCount || 0,
+      isLiked: item.isLiked || false,
+      attachments: [],
+      createdAt: new Date(item.createdAt),
+      updatedAt: new Date(item.updatedAt),
+    }
+
+    return post
+  },
+
+  async createPost(data: { title: string; content: string; tags?: string[]; groupId?: string }): Promise<Post> {
+    const requestBody: any = {
+      title: data.title,
+      content: data.content,
+      tags: data.tags || [],
+    }
+
+    // Add groupId if provided (for group posts)
+    if (data.groupId) {
+      requestBody.groupId = data.groupId
+    }
+
+    const response = await fetch(`${API_BASE}/posts`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenManager.getToken()}`,
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Không thể tạo bài viết")
+    }
+
+    const result = await response.json()
+    const item = result.data
+
+    // Transform BE data to frontend Post interface
+    const post: Post = {
+      id: item.id,
+      title: item.title,
+      content: item.content,
+      author: {
+        id: item.author.id,
+        username: item.author.username,
+        displayName: item.author.displayName || item.author.username,
+        email: "",
+        avatar: item.author.avatar || "/placeholder-user.jpg",
+        bio: "",
+        location: "",
+        website: "",
+        followers: 0,
+        following: 0,
+        points: 0,
+        level: 1,
+        badges: [],
+        joinedAt: new Date(),
+      },
+      authorId: item.author.id,
+      group: item.group
+        ? {
+            id: item.group.id,
+            name: item.group.name,
+            slug: item.group.slug,
+            description: "",
+            memberCount: 0,
+            postCount: 0,
+            tag: [],
+            tags: [],
+            createdAt: new Date(),
+          }
+        : undefined,
+      groupId: item.group?.id,
+      tags: item.tags?.map((tag: any) => tag.name || tag) || [],
+      reactions: item.reactions || [],
+      likeCount: item.likeCount || 0,
+      commentCount: item.commentCount || 0,
+      isLiked: item.isLiked || false,
+      attachments: [],
+      createdAt: new Date(item.createdAt),
+      updatedAt: new Date(item.updatedAt),
+    }
+
+    return post
+  },
+
+  async updatePost(
+    id: string,
+    data: {
+      title: string
+      content: string
+      tags?: string[]
+    }
+  ): Promise<Post> {
+    const requestBody = {
+      title: data.title,
+      content: data.content,
+      tags: data.tags || [],
+    }
+
+    const response = await fetch(`${API_BASE}/posts/${id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenManager.getToken()}`,
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Không thể cập nhật bài viết")
+    }
+
+    const result = await response.json()
+    const item = result.data
+
+    // Transform BE data to frontend Post interface
+    const post: Post = {
+      id: item.id,
+      title: item.title,
+      content: item.content,
+      author: {
+        id: item.author.id,
+        username: item.author.username,
+        displayName: item.author.displayName || item.author.username,
+        email: "",
+        avatar: item.author.avatar || "/placeholder-user.jpg",
+        bio: "",
+        location: "",
+        website: "",
+        followers: 0,
+        following: 0,
+        points: 0,
+        level: 1,
+        badges: [],
+        joinedAt: new Date(),
+      },
+      authorId: item.author.id,
+      group: item.group
+        ? {
+            id: item.group.id,
+            name: item.group.name,
+            slug: item.group.slug,
+            description: "",
+            memberCount: 0,
+            postCount: 0,
+            tag: [],
+            tags: [],
+            createdAt: new Date(),
+          }
+        : undefined,
+      groupId: item.group?.id,
+      tags: transformTags(item.tags),
+      reactions: item.reactions || [],
+      likeCount: item.likeCount || 0,
+      commentCount: item.commentCount || 0,
+      isLiked: item.isLiked || false,
+      attachments: [],
+      createdAt: new Date(item.createdAt),
+      updatedAt: new Date(item.updatedAt),
+    }
+
+    return post
+  },
+
+  async deletePost(id: string): Promise<void> {
+    const response = await fetch(`${API_BASE}/posts/${id}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenManager.getToken()}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Không thể xóa bài viết")
+    }
   },
 
   async likePost(postId: string): Promise<void> {

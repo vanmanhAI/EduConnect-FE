@@ -2,27 +2,56 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Heart, MessageCircle, Share2, MoreHorizontal, Bookmark } from "lucide-react"
+import { Heart, MessageCircle, Share2, MoreHorizontal, Bookmark, Pencil, Trash2 } from "lucide-react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { AvatarWithStatus } from "@/components/ui/avatar-with-status"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { formatDate, truncateText } from "@/lib/utils"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { useToast } from "@/hooks/use-toast"
+import { formatDate, truncateText, extractTags } from "@/lib/utils"
 import { api } from "@/lib/api"
+import { tokenManager } from "@/lib/auth"
 import type { Post } from "@/types"
 
 interface PostCardProps {
   post: Post
   showGroup?: boolean
   compact?: boolean
+  onPostUpdated?: () => void
+  onPostDeleted?: () => void
 }
 
-export function PostCard({ post, showGroup = true, compact = false }: PostCardProps) {
+export function PostCard({ post, showGroup = true, compact = false, onPostUpdated, onPostDeleted }: PostCardProps) {
+  const { toast } = useToast()
   const [isLiked, setIsLiked] = useState(post.isLiked || false)
   const [likeCount, setLikeCount] = useState(post.likeCount)
   const [loading, setLoading] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editTitle, setEditTitle] = useState(post.title)
+  const [editContent, setEditContent] = useState(post.content)
+  const [editTags, setEditTags] = useState<string[]>(post.tags)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  // Check if current user is the author
+  const currentUser = tokenManager.getUser()
+  const isAuthor = currentUser && String(currentUser.id) === String(post.authorId)
 
   const handleLike = async () => {
     if (loading) return
@@ -58,6 +87,92 @@ export function PostCard({ post, showGroup = true, compact = false }: PostCardPr
     } else {
       // Fallback: copy to clipboard
       navigator.clipboard.writeText(`${window.location.origin}/posts/${post.id}`)
+    }
+  }
+
+  const handleOpenEdit = () => {
+    setEditTitle(post.title)
+    setEditContent(post.content)
+    // Ensure tags are strings
+    const stringTags = post.tags.map((tag) => (typeof tag === "string" ? tag : (tag as any).name)).filter(Boolean)
+    setEditTags(stringTags)
+    setIsEditDialogOpen(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editTitle.trim() || !editContent.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: "Vui lòng nhập tiêu đề và nội dung bài viết",
+      })
+      return
+    }
+
+    try {
+      setIsSaving(true)
+      const extractedTags = extractTags(editContent)
+      await api.updatePost(post.id, {
+        title: editTitle.trim(),
+        content: editContent.trim(),
+        tags: extractedTags,
+      })
+
+      toast({
+        title: "Thành công",
+        description: "Bài viết đã được cập nhật",
+      })
+
+      setIsEditDialogOpen(false)
+
+      // Call callback if provided, otherwise reload page
+      if (onPostUpdated) {
+        onPostUpdated()
+      } else {
+        window.location.reload()
+      }
+    } catch (error: any) {
+      console.error("Failed to update post:", error)
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: error.message || "Không thể cập nhật bài viết. Vui lòng thử lại.",
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDeletePost = async () => {
+    try {
+      setIsDeleting(true)
+      await api.deletePost(post.id)
+
+      toast({
+        title: "Thành công",
+        description: "Bài viết đã được xóa",
+      })
+
+      setIsDeleteDialogOpen(false)
+
+      // If callback provided, use it
+      if (onPostDeleted) {
+        onPostDeleted()
+      } else if (window.location.pathname.includes(`/posts/${post.id}`)) {
+        // If on post detail page, redirect to feed
+        window.location.href = "/feed"
+      } else {
+        // Otherwise reload to update the list
+        window.location.reload()
+      }
+    } catch (error: any) {
+      console.error("Failed to delete post:", error)
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: error.message || "Không thể xóa bài viết. Vui lòng thử lại.",
+      })
+      setIsDeleting(false)
     }
   }
 
@@ -102,6 +217,21 @@ export function PostCard({ post, showGroup = true, compact = false }: PostCardPr
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {isAuthor && (
+                <>
+                  <DropdownMenuItem onClick={handleOpenEdit}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Chỉnh sửa
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setIsDeleteDialogOpen(true)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Xóa bài viết
+                  </DropdownMenuItem>
+                </>
+              )}
               <DropdownMenuItem>
                 <Bookmark className="mr-2 h-4 w-4" />
                 Lưu bài viết
@@ -137,11 +267,16 @@ export function PostCard({ post, showGroup = true, compact = false }: PostCardPr
         {/* Tags */}
         {post.tags.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {post.tags.map((tag) => (
-              <Badge key={tag} variant="secondary" className="text-xs">
-                #{tag}
-              </Badge>
-            ))}
+            {post.tags.map((tag) => {
+              // Handle both string and object formats
+              const tagName = typeof tag === "string" ? tag : (tag as any).name
+              const tagKey = typeof tag === "string" ? tag : (tag as any).id
+              return (
+                <Badge key={tagKey} variant="secondary" className="text-xs">
+                  {tagName}
+                </Badge>
+              )
+            })}
           </div>
         )}
 
@@ -173,6 +308,89 @@ export function PostCard({ post, showGroup = true, compact = false }: PostCardPr
           </div>
         </div>
       </CardContent>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Chỉnh sửa bài viết</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Tiêu đề</label>
+              <Input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="Nhập tiêu đề bài viết..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Nội dung</label>
+              <Textarea
+                value={editContent}
+                onChange={(e) => {
+                  setEditContent(e.target.value)
+                  setEditTags(extractTags(e.target.value))
+                }}
+                placeholder="Nhập nội dung bài viết..."
+                className="min-h-[300px] resize-none"
+              />
+              <p className="text-xs text-muted-foreground">Sử dụng # để thêm hashtag (ví dụ: #javascript #react)</p>
+            </div>
+
+            {editTags.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Thẻ được tìm thấy:</label>
+                <div className="flex flex-wrap gap-2">
+                  {editTags.map((tag) => {
+                    // Handle both string and object formats
+                    const tagName = typeof tag === "string" ? tag : (tag as any).name
+                    const tagKey = typeof tag === "string" ? tag : (tag as any).id
+                    return (
+                      <Badge key={tagKey} variant="secondary" className="text-xs">
+                        {tagName}
+                      </Badge>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSaving}>
+              Hủy
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={isSaving}>
+              {isSaving ? "Đang lưu..." : "Lưu thay đổi"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận xóa bài viết</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc chắn muốn xóa bài viết này? Hành động này không thể hoàn tác.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeletePost}
+              disabled={isDeleting}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {isDeleting ? "Đang xóa..." : "Xóa bài viết"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   )
 }

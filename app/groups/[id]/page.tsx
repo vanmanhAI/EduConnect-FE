@@ -54,13 +54,19 @@ export default function GroupDetailPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isLoadingMembers, setIsLoadingMembers] = useState(false)
+  const [postsPage, setPostsPage] = useState(1)
+  const [postsHasMore, setPostsHasMore] = useState(false)
+  const [postsLoadingMore, setPostsLoadingMore] = useState(false)
 
   useEffect(() => {
     const loadGroupData = async () => {
       try {
         setLoading(true)
         setError(null)
-        const [groupData, groupPosts] = await Promise.all([api.getGroup(groupId), api.getPosts(groupId)])
+        const [groupData, postsResult] = await Promise.all([
+          api.getGroup(groupId),
+          api.getGroupPosts(groupId, 1, 10, 1),
+        ])
 
         if (!groupData) {
           setError("Không tìm thấy nhóm")
@@ -85,7 +91,9 @@ export default function GroupDetailPage() {
         }
 
         setGroup({ ...groupData, joinStatus })
-        setPosts(groupPosts)
+        setPosts(postsResult.posts)
+        setPostsHasMore(postsResult.hasMore)
+        setPostsPage(1)
         setMembers([]) // will be loaded when switching to Members tab
 
         const groupMessages = await api.getChatMessages(`group-${groupId}`)
@@ -236,6 +244,39 @@ export default function GroupDetailPage() {
       setIsDeleteDialogOpen(false)
     } finally {
       setIsDeleting(false)
+    }
+  }
+
+  const handleLoadMorePosts = async () => {
+    if (postsLoadingMore || !postsHasMore || !group) return
+
+    try {
+      setPostsLoadingMore(true)
+      const nextPage = postsPage + 1
+      const result = await api.getGroupPosts(group.id, nextPage, 10, 1)
+      setPosts((prev) => [...prev, ...result.posts])
+      setPostsHasMore(result.hasMore)
+      setPostsPage(nextPage)
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: "Không thể tải thêm bài viết. Vui lòng thử lại.",
+      })
+    } finally {
+      setPostsLoadingMore(false)
+    }
+  }
+
+  const handleReloadPosts = async () => {
+    if (!group) return
+    try {
+      const result = await api.getGroupPosts(group.id, 1, 10, 1)
+      setPosts(result.posts)
+      setPostsHasMore(result.hasMore)
+      setPostsPage(1)
+    } catch (err) {
+      console.error("Failed to reload posts:", err)
     }
   }
 
@@ -430,11 +471,33 @@ export default function GroupDetailPage() {
                   }}
                 />
               ) : (
-                <div className="space-y-6">
-                  {posts.map((post) => (
-                    <PostCard key={post.id} post={post} showGroup={false} />
-                  ))}
-                </div>
+                <>
+                  <div className="space-y-6">
+                    {posts.map((post) => (
+                      <PostCard
+                        key={post.id}
+                        post={post}
+                        showGroup={false}
+                        onPostUpdated={handleReloadPosts}
+                        onPostDeleted={handleReloadPosts}
+                      />
+                    ))}
+                  </div>
+
+                  {postsHasMore && (
+                    <div className="flex justify-center pt-4">
+                      <Button
+                        size="lg"
+                        variant="outline"
+                        onClick={handleLoadMorePosts}
+                        disabled={postsLoadingMore}
+                        className="min-w-[200px]"
+                      >
+                        {postsLoadingMore ? "Đang tải..." : "Xem thêm"}
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </TabsContent>
 

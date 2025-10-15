@@ -38,9 +38,20 @@ interface SearchFilters {
 
 export default function FeedPage() {
   const [posts, setPosts] = useState<Post[]>([])
+  const [trendingPosts, setTrendingPosts] = useState<Post[]>([])
+  const [followingPosts, setFollowingPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("all")
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [trendingPage, setTrendingPage] = useState(1)
+  const [trendingHasMore, setTrendingHasMore] = useState(false)
+  const [trendingLoadingMore, setTrendingLoadingMore] = useState(false)
+  const [followingPage, setFollowingPage] = useState(1)
+  const [followingHasMore, setFollowingHasMore] = useState(false)
+  const [followingLoadingMore, setFollowingLoadingMore] = useState(false)
 
   // Search states
   const [searchQuery, setSearchQuery] = useState("")
@@ -80,8 +91,23 @@ export default function FeedPage() {
       try {
         setLoading(true)
         setError(null)
-        const data = await api.getPosts()
-        setPosts(data)
+
+        if (activeTab === "trending") {
+          const result = await api.getTrendingPosts(1, 10, 1)
+          setTrendingPosts(result.posts)
+          setTrendingHasMore(result.hasMore)
+          setTrendingPage(1)
+        } else if (activeTab === "following") {
+          const result = await api.getFollowingPosts(1, 10, 1)
+          setFollowingPosts(result.posts)
+          setFollowingHasMore(result.hasMore)
+          setFollowingPage(1)
+        } else if (activeTab === "all") {
+          const result = await api.getFeedPosts(1, 10, 1)
+          setPosts(result.posts)
+          setHasMore(result.hasMore)
+          setPage(1)
+        }
       } catch (err) {
         setError("Không thể tải bảng tin. Vui lòng thử lại.")
       } finally {
@@ -107,13 +133,78 @@ export default function FeedPage() {
     setShowSearchResults(true)
   }
 
+  const handleLoadMore = async () => {
+    if (loadingMore || !hasMore) return
+
+    try {
+      setLoadingMore(true)
+      const nextPage = page + 1
+      const result = await api.getFeedPosts(nextPage, 10, 1)
+      setPosts((prev) => [...prev, ...result.posts])
+      setHasMore(result.hasMore)
+      setPage(nextPage)
+    } catch (err) {
+      setError("Không thể tải thêm bài viết. Vui lòng thử lại.")
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
+  const handleLoadMoreTrending = async () => {
+    if (trendingLoadingMore || !trendingHasMore) return
+
+    try {
+      setTrendingLoadingMore(true)
+      const nextPage = trendingPage + 1
+      const result = await api.getTrendingPosts(nextPage, 10, 1)
+      setTrendingPosts((prev) => [...prev, ...result.posts])
+      setTrendingHasMore(result.hasMore)
+      setTrendingPage(nextPage)
+    } catch (err) {
+      setError("Không thể tải thêm bài viết thịnh hành. Vui lòng thử lại.")
+    } finally {
+      setTrendingLoadingMore(false)
+    }
+  }
+
+  const handleLoadMoreFollowing = async () => {
+    if (followingLoadingMore || !followingHasMore) return
+
+    try {
+      setFollowingLoadingMore(true)
+      const nextPage = followingPage + 1
+      const result = await api.getFollowingPosts(nextPage, 10, 1)
+      setFollowingPosts((prev) => [...prev, ...result.posts])
+      setFollowingHasMore(result.hasMore)
+      setFollowingPage(nextPage)
+    } catch (err) {
+      setError("Không thể tải thêm bài viết đang theo dõi. Vui lòng thử lại.")
+    } finally {
+      setFollowingLoadingMore(false)
+    }
+  }
+
   const handleRetry = () => {
     setError(null)
     const loadPosts = async () => {
       try {
         setLoading(true)
-        const data = await api.getPosts()
-        setPosts(data)
+        if (activeTab === "trending") {
+          const result = await api.getTrendingPosts(1, 10, 1)
+          setTrendingPosts(result.posts)
+          setTrendingHasMore(result.hasMore)
+          setTrendingPage(1)
+        } else if (activeTab === "following") {
+          const result = await api.getFollowingPosts(1, 10, 1)
+          setFollowingPosts(result.posts)
+          setFollowingHasMore(result.hasMore)
+          setFollowingPage(1)
+        } else {
+          const result = await api.getFeedPosts(1, 10, 1)
+          setPosts(result.posts)
+          setHasMore(result.hasMore)
+          setPage(1)
+        }
       } catch (err) {
         setError("Không thể tải bảng tin. Vui lòng thử lại.")
       } finally {
@@ -121,6 +212,29 @@ export default function FeedPage() {
       }
     }
     loadPosts()
+  }
+
+  const handleReloadPosts = async () => {
+    try {
+      if (activeTab === "all") {
+        const result = await api.getFeedPosts(1, 10, 1)
+        setPosts(result.posts)
+        setHasMore(result.hasMore)
+        setPage(1)
+      } else if (activeTab === "trending") {
+        const result = await api.getTrendingPosts(1, 10, 1)
+        setTrendingPosts(result.posts)
+        setTrendingHasMore(result.hasMore)
+        setTrendingPage(1)
+      } else if (activeTab === "following") {
+        const result = await api.getFollowingPosts(1, 10, 1)
+        setFollowingPosts(result.posts)
+        setFollowingHasMore(result.hasMore)
+        setFollowingPage(1)
+      }
+    } catch (err) {
+      console.error("Failed to reload posts:", err)
+    }
   }
 
   const rightSidebarContent = (
@@ -250,32 +364,136 @@ export default function FeedPage() {
                 )}
 
                 {!loading && !error && posts.length > 0 && (
-                  <div className="space-y-6">
-                    {posts.map((post) => (
-                      <PostCard key={post.id} post={post} />
-                    ))}
-                  </div>
+                  <>
+                    <div className="space-y-6">
+                      {posts.map((post) => (
+                        <PostCard
+                          key={post.id}
+                          post={post}
+                          onPostUpdated={handleReloadPosts}
+                          onPostDeleted={handleReloadPosts}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Load More Button */}
+                    {hasMore && (
+                      <div className="flex justify-center mt-8">
+                        <Button
+                          variant="outline"
+                          onClick={handleLoadMore}
+                          disabled={loadingMore}
+                          className="min-w-[200px]"
+                        >
+                          {loadingMore ? "Đang tải..." : "Xem thêm"}
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </TabsContent>
 
               <TabsContent value="following" className="space-y-6 mt-6">
-                <EmptyState
-                  title="Chưa theo dõi ai"
-                  description="Theo dõi những người dùng thú vị để xem bài viết của họ ở đây"
-                  action={{
-                    label: "Khám phá người dùng",
-                    onClick: () => (window.location.href = "/people"),
-                  }}
-                />
+                {loading && (
+                  <div className="space-y-6">
+                    {[...Array(3)].map((_, i) => (
+                      <PostSkeleton key={i} />
+                    ))}
+                  </div>
+                )}
+
+                {error && <ErrorState description={error} onRetry={handleRetry} />}
+
+                {!loading && !error && followingPosts.length === 0 && (
+                  <EmptyState
+                    title="Chưa theo dõi ai"
+                    description="Theo dõi những người dùng thú vị để xem bài viết của họ ở đây"
+                    action={{
+                      label: "Khám phá người dùng",
+                      onClick: () => (window.location.href = "/people"),
+                    }}
+                  />
+                )}
+
+                {!loading && !error && followingPosts.length > 0 && (
+                  <>
+                    <div className="space-y-6">
+                      {followingPosts.map((post) => (
+                        <PostCard
+                          key={post.id}
+                          post={post}
+                          onPostUpdated={handleReloadPosts}
+                          onPostDeleted={handleReloadPosts}
+                        />
+                      ))}
+                    </div>
+
+                    {followingHasMore && (
+                      <div className="flex justify-center pt-4">
+                        <Button
+                          size="lg"
+                          variant="outline"
+                          onClick={handleLoadMoreFollowing}
+                          disabled={followingLoadingMore}
+                          className="min-w-[200px]"
+                        >
+                          {followingLoadingMore ? "Đang tải..." : "Xem thêm"}
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
               </TabsContent>
 
               <TabsContent value="trending" className="space-y-6 mt-6">
-                {!loading && !error && posts.length > 0 && (
+                {loading && (
                   <div className="space-y-6">
-                    {posts.slice(0, 5).map((post) => (
-                      <PostCard key={post.id} post={post} />
+                    {[...Array(3)].map((_, i) => (
+                      <PostSkeleton key={i} />
                     ))}
                   </div>
+                )}
+
+                {error && <ErrorState description={error} onRetry={handleRetry} />}
+
+                {!loading && !error && trendingPosts.length === 0 && (
+                  <EmptyState
+                    title="Chưa có bài viết thịnh hành"
+                    description="Hãy đăng bài và nhận nhiều tương tác để xuất hiện ở đây!"
+                    action={{
+                      label: "Tạo bài viết",
+                      onClick: () => (window.location.href = "/compose"),
+                    }}
+                  />
+                )}
+
+                {!loading && !error && trendingPosts.length > 0 && (
+                  <>
+                    <div className="space-y-6">
+                      {trendingPosts.map((post) => (
+                        <PostCard
+                          key={post.id}
+                          post={post}
+                          onPostUpdated={handleReloadPosts}
+                          onPostDeleted={handleReloadPosts}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Load More Button for Trending */}
+                    {trendingHasMore && (
+                      <div className="flex justify-center mt-8">
+                        <Button
+                          variant="outline"
+                          onClick={handleLoadMoreTrending}
+                          disabled={trendingLoadingMore}
+                          className="min-w-[200px]"
+                        >
+                          {trendingLoadingMore ? "Đang tải..." : "Xem thêm"}
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </TabsContent>
             </Tabs>
