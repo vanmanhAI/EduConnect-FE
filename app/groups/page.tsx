@@ -28,6 +28,8 @@ export default function GroupsPage() {
   const [filteredGroups, setFilteredGroups] = useState<Group[]>([])
   const [joinedGroups, setJoinedGroups] = useState<Group[]>([])
   const [joinedGroupsLoading, setJoinedGroupsLoading] = useState(false)
+  const [trendingGroups, setTrendingGroups] = useState<Group[]>([])
+  const [trendingGroupsLoading, setTrendingGroupsLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
@@ -41,6 +43,9 @@ export default function GroupsPage() {
   const [joinedPage, setJoinedPage] = useState<number>(1)
   const [joinedHasMore, setJoinedHasMore] = useState<boolean>(false)
   const [joinedLoadingMore, setJoinedLoadingMore] = useState(false)
+  const [trendingPage, setTrendingPage] = useState<number>(1)
+  const [trendingHasMore, setTrendingHasMore] = useState<boolean>(false)
+  const [trendingLoadingMore, setTrendingLoadingMore] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [searching, setSearching] = useState(false)
   const [searchInput, setSearchInput] = useState("")
@@ -114,6 +119,33 @@ export default function GroupsPage() {
       loadJoinedGroups()
     }
   }, [activeTab, joinedGroups.length, pageSize])
+
+  // Load trending groups when tab changes to "trending"
+  useEffect(() => {
+    if (activeTab === "trending" && trendingGroups.length === 0) {
+      const loadTrendingGroups = async () => {
+        try {
+          setTrendingGroupsLoading(true)
+          setError(null)
+          const result = await api.getTrendingGroups(1, 18, 0.05)
+          setTrendingGroups(result.groups)
+          setTrendingHasMore(result.hasMore)
+          setTrendingPage(1)
+        } catch (err) {
+          // For trending groups tab, if API fails, treat as no trending groups instead of error
+          if (activeTab === "trending") {
+            setTrendingGroups([])
+          } else {
+            setError("Không thể tải danh sách nhóm phổ biến. Vui lòng thử lại.")
+          }
+        } finally {
+          setTrendingGroupsLoading(false)
+        }
+      }
+
+      loadTrendingGroups()
+    }
+  }, [activeTab, trendingGroups.length])
 
   // Hydrate state from URL on first render
   useEffect(() => {
@@ -268,6 +300,23 @@ export default function GroupsPage() {
     }
   }
 
+  const handleLoadMoreTrending = async () => {
+    if (trendingLoadingMore || !trendingHasMore) return
+
+    try {
+      setTrendingLoadingMore(true)
+      const nextPage = trendingPage + 1
+      const result = await api.getTrendingGroups(nextPage, 18, 0.05)
+      setTrendingGroups((prev) => [...prev, ...result.groups])
+      setTrendingHasMore(result.hasMore)
+      setTrendingPage(nextPage)
+    } catch (err) {
+      setError("Không thể tải thêm nhóm phổ biến. Vui lòng thử lại.")
+    } finally {
+      setTrendingLoadingMore(false)
+    }
+  }
+
   const handleRetry = () => {
     setError(null)
     const loadGroups = async () => {
@@ -291,6 +340,8 @@ export default function GroupsPage() {
     switch (activeTab) {
       case "joined":
         return joinedGroups
+      case "trending":
+        return trendingGroups
       case "popular":
         // If popular filter is not already applied, sort by member count
         if (selectedFilter !== "popular") {
@@ -520,13 +571,17 @@ export default function GroupsPage() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsList className="grid w-full max-w-2xl grid-cols-3">
             <TabsTrigger value="all">Tất cả</TabsTrigger>
             <TabsTrigger value="joined">Đã tham gia</TabsTrigger>
+            <TabsTrigger value="trending">Phổ biến</TabsTrigger>
           </TabsList>
 
           <TabsContent value={activeTab} className="mt-6">
-            {(loading && groups.length === 0) || (joinedGroupsLoading && activeTab === "joined") || searching ? (
+            {(loading && groups.length === 0) ||
+            (joinedGroupsLoading && activeTab === "joined") ||
+            (trendingGroupsLoading && activeTab === "trending") ||
+            searching ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[...Array(6)].map((_, i) => (
                   <GroupSkeleton key={i} />
@@ -541,21 +596,25 @@ export default function GroupsPage() {
                 title={
                   activeTab === "joined"
                     ? "Chưa tham gia nhóm nào"
-                    : searchQuery
-                      ? "Không tìm thấy nhóm"
-                      : "Chưa có nhóm nào"
+                    : activeTab === "trending"
+                      ? "Chưa có nhóm phổ biến"
+                      : searchQuery
+                        ? "Không tìm thấy nhóm"
+                        : "Chưa có nhóm nào"
                 }
                 description={
                   activeTab === "joined"
                     ? "Tham gia các nhóm để kết nối với cộng đồng"
-                    : searchQuery
-                      ? "Thử tìm kiếm với từ khóa khác"
-                      : "Hãy tạo nhóm đầu tiên cho cộng đồng"
+                    : activeTab === "trending"
+                      ? "Các nhóm phổ biến sẽ xuất hiện ở đây"
+                      : searchQuery
+                        ? "Thử tìm kiếm với từ khóa khác"
+                        : "Hãy tạo nhóm đầu tiên cho cộng đồng"
                 }
                 action={{
-                  label: activeTab === "joined" ? "Khám phá nhóm" : "Tạo nhóm mới",
+                  label: activeTab === "joined" || activeTab === "trending" ? "Khám phá nhóm" : "Tạo nhóm mới",
                   onClick: () => {
-                    if (activeTab === "joined") {
+                    if (activeTab === "joined" || activeTab === "trending") {
                       setActiveTab("all")
                     } else {
                       // Navigate to create group
@@ -573,7 +632,7 @@ export default function GroupsPage() {
               </div>
             )}
 
-            {/* Load More Button - show for both "all" and "joined" tabs when not searching */}
+            {/* Load More Button - show for "all", "joined", and "trending" tabs when not searching */}
             {!loading && !error && !searchQuery.trim() && (
               <>
                 {activeTab === "all" && hasMore && (
@@ -595,6 +654,18 @@ export default function GroupsPage() {
                     </Button>
                   </div>
                 )}
+                {activeTab === "trending" && trendingHasMore && (
+                  <div className="mt-8 flex justify-center">
+                    <Button
+                      variant="outline"
+                      onClick={handleLoadMoreTrending}
+                      disabled={trendingLoadingMore}
+                      className="min-w-[200px]"
+                    >
+                      {trendingLoadingMore ? "Đang tải..." : "Xem thêm"}
+                    </Button>
+                  </div>
+                )}
               </>
             )}
           </TabsContent>
@@ -612,7 +683,6 @@ function CreateGroupDialog({ onCreated }: { onCreated?: () => void }) {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [tagsInput, setTagsInput] = useState("")
-  const [privacy, setPrivacy] = useState<"public" | "private">("public")
   const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async () => {
@@ -636,7 +706,7 @@ function CreateGroupDialog({ onCreated }: { onCreated?: () => void }) {
         name: name.trim(),
         description: description.trim() || undefined,
         tags,
-        privacy,
+        privacy: "public", // Always set to public
       })
 
       toast({ title: "Tạo nhóm thành công", description: `Đã tạo: ${created.name}` })
@@ -644,7 +714,6 @@ function CreateGroupDialog({ onCreated }: { onCreated?: () => void }) {
       setName("")
       setDescription("")
       setTagsInput("")
-      setPrivacy("public")
 
       // Call onCreated first to refresh the groups list
       await onCreated?.()
@@ -706,18 +775,6 @@ function CreateGroupDialog({ onCreated }: { onCreated?: () => void }) {
             <p className="text-xs text-muted-foreground">
               Nhập các tag phân cách bằng dấu phẩy. Ví dụ: math, study, programming
             </p>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Quyền riêng tư</label>
-            <Select value={privacy} onValueChange={(v) => setPrivacy(v as any)}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="public">Công khai</SelectItem>
-                <SelectItem value="private">Riêng tư</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>

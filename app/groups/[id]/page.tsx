@@ -63,10 +63,9 @@ export default function GroupDetailPage() {
       try {
         setLoading(true)
         setError(null)
-        const [groupData, postsResult] = await Promise.all([
-          api.getGroup(groupId),
-          api.getGroupPosts(groupId, 1, 10, 1),
-        ])
+
+        // Load group data first
+        const groupData = await api.getGroup(groupId)
 
         if (!groupData) {
           setError("Không tìm thấy nhóm")
@@ -82,24 +81,41 @@ export default function GroupDetailPage() {
           try {
             const joinedGroups = await api.getJoinedGroups()
             hasJoined = joinedGroups.groups?.some((g) => g.id === groupData.id) || false
-          } catch {
+          } catch (error) {
             // ignore errors from joined groups API; default to not joined
+            console.log("Could not fetch joined groups, defaulting to not joined")
           }
           if (ownerJoined || hasJoined) joinStatus = "joined"
-        } catch {
-          // ignore
+        } catch (error) {
+          console.log("Could not determine join status, defaulting to not joined")
         }
 
         setGroup({ ...groupData, joinStatus })
-        setPosts(postsResult.posts)
-        setPostsHasMore(postsResult.hasMore)
-        setPostsPage(1)
         setMembers([]) // will be loaded when switching to Members tab
 
-        const groupMessages = await api.getChatMessages(`group-${groupId}`)
-        setMessages(groupMessages)
-      } catch (err) {
-        setError("Không thể tải thông tin nhóm. Vui lòng thử lại.")
+        // Load posts (non-blocking)
+        try {
+          const postsResult = await api.getGroupPosts(groupId, 1, 10, 1)
+          setPosts(postsResult.posts)
+          setPostsHasMore(postsResult.hasMore)
+          setPostsPage(1)
+        } catch (err) {
+          console.error("Failed to load group posts:", err)
+          setPosts([])
+          setPostsHasMore(false)
+        }
+
+        // Load messages (non-blocking)
+        try {
+          const groupMessages = await api.getChatMessages(`group-${groupId}`)
+          setMessages(groupMessages)
+        } catch (err) {
+          console.error("Failed to load group messages:", err)
+          setMessages([])
+        }
+      } catch (err: any) {
+        console.error("Failed to load group data:", err)
+        setError(err?.message || "Không thể tải thông tin nhóm. Vui lòng thử lại.")
       } finally {
         setLoading(false)
       }
@@ -143,6 +159,33 @@ export default function GroupDetailPage() {
     loadMembers()
   }, [group, activeTab, canViewMembers])
 
+  // Reload members after kicking
+  const handleMemberKicked = async () => {
+    if (!group) return
+    try {
+      const backendMembers = await api.getGroupMembers(group.id)
+      setMembers(backendMembers)
+      // Update member count
+      setGroup({ ...group, memberCount: group.memberCount - 1 })
+      toast({
+        title: "Đã kick thành viên",
+        description: "Thành viên đã được loại khỏi nhóm",
+      })
+    } catch (error) {
+      console.error("Failed to reload members:", error)
+    }
+  }
+
+  // Handle when current user leaves the group
+  const handleMemberLeft = async () => {
+    toast({
+      title: "Đã rời nhóm",
+      description: "Bạn đã rời khỏi nhóm thành công",
+    })
+    // Redirect to groups page after leaving
+    router.push("/groups")
+  }
+
   const handleJoinToggle = async () => {
     if (!group) return
 
@@ -152,6 +195,8 @@ export default function GroupDetailPage() {
       if (group.joinStatus === "joined") {
         await api.leaveGroup(group.id)
         setGroup({ ...group, joinStatus: "not-joined", memberCount: group.memberCount - 1 })
+        // Clear posts when leaving group
+        setPosts([])
         toast({
           title: "Đã rời khỏi nhóm",
           description: `Bạn đã rời khỏi nhóm ${group.name}`,
@@ -164,6 +209,19 @@ export default function GroupDetailPage() {
           joinStatus: newStatus,
           memberCount: group.isPrivate ? group.memberCount : group.memberCount + 1,
         })
+
+        // Load posts immediately after joining (only for public groups)
+        if (!group.isPrivate) {
+          try {
+            const postsResult = await api.getGroupPosts(group.id, 1, 10, 1)
+            setPosts(postsResult.posts)
+            setPostsHasMore(postsResult.hasMore)
+            setPostsPage(1)
+          } catch (err) {
+            console.error("Failed to load posts after joining:", err)
+          }
+        }
+
         toast({
           title: group.isPrivate ? "Yêu cầu đã gửi" : "Tham gia thành công",
           description: group.isPrivate
@@ -344,6 +402,7 @@ export default function GroupDetailPage() {
   }
 
   const canViewContent = !group.isPrivate || group.joinStatus === "joined"
+  const canViewPosts = group.joinStatus === "joined" // Only members can view posts
 
   return (
     <AppShell>
@@ -461,7 +520,19 @@ export default function GroupDetailPage() {
             </TabsList>
 
             <TabsContent value="posts" className="space-y-6 mt-6">
-              {posts.length === 0 ? (
+              {!canViewPosts ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Users className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <p className="text-muted-foreground mb-4">
+                    Bạn không phải thành viên của nhóm. Vui lòng tham gia nhóm để có thể xem bài viết
+                  </p>
+                  <Button onClick={handleJoinToggle} className="bg-educonnect-primary hover:bg-educonnect-primary/90">
+                    {getJoinButtonContent()}
+                  </Button>
+                </div>
+              ) : posts.length === 0 ? (
                 <EmptyState
                   title="Chưa có bài viết nào"
                   description="Hãy là người đầu tiên chia sẻ trong nhóm này!"
@@ -517,7 +588,15 @@ export default function GroupDetailPage() {
               ) : (
                 <div className="grid md:grid-cols-2 gap-4">
                   {members.map((member) => (
-                    <UserCard key={member.id} user={member} showFollowButton={false} />
+                    <UserCard
+                      key={member.id}
+                      user={member}
+                      showFollowButton={false}
+                      isGroupOwner={isOwner}
+                      groupId={group?.id}
+                      onMemberKicked={handleMemberKicked}
+                      onMemberLeft={handleMemberLeft}
+                    />
                   ))}
                 </div>
               )}
