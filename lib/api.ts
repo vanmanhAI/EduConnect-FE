@@ -968,6 +968,70 @@ export const api = {
     }
   },
 
+  // Get trending groups
+  async getTrendingGroups(
+    page: number = 1,
+    limit: number = 18,
+    decayFactor: number = 0.05
+  ): Promise<{ groups: Group[]; hasMore: boolean; total: number }> {
+    const token = tokenManager.getToken()
+    const res = await fetch(`${API_BASE}/groups/trending?page=${page}&limit=${limit}&decayFactor=${decayFactor}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      cache: "no-store",
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error((data && (data.message || data.error)) || "Không thể tải danh sách nhóm phổ biến")
+    }
+
+    // Check if data structure is valid
+    const items = data.data?.items
+    if (!items || !Array.isArray(items)) {
+      console.warn("Invalid trending groups data structure:", data)
+      return {
+        groups: [],
+        hasMore: false,
+        total: 0,
+      }
+    }
+
+    // Transform API data to match frontend interface
+    const groups: Group[] = items.map((group: any) => {
+      const processedTags = (group.tags || group.tag || [])
+        .filter((tag: any) => tag && (typeof tag === "string" ? tag : tag.name))
+        .map((tag: any) => (typeof tag === "string" ? tag : tag.name))
+      return {
+        id: group.id,
+        name: group.name,
+        slug: group.slug,
+        description: group.description || "",
+        coverImage: group.coverImage,
+        avatar: group.avatar,
+        ownerId: group.ownerId,
+        memberCount: group.memberCount || 0,
+        postCount: group.postCount || 0,
+        createdAt: new Date(group.createdAt),
+        tags: processedTags,
+        tag: processedTags, // Keep for backward compatibility
+        isPrivate: false,
+        members: [],
+        userRole: (group.isJoined ? "member" : null) as "member" | "owner" | "mod" | null,
+        joinStatus: (group.isJoined ? "joined" : "not-joined") as "joined" | "pending" | "not-joined",
+      }
+    })
+
+    return {
+      groups,
+      hasMore: data.data?.hasMore || false,
+      total: items.length,
+    }
+  },
+
   async getGroup(id: string): Promise<Group | null> {
     try {
       const token = tokenManager.getToken()
@@ -1184,6 +1248,23 @@ export const api = {
     } catch (error) {
       console.error("Error fetching group members:", error)
       return []
+    }
+  },
+
+  // Kick member from group (owner only)
+  async kickGroupMember(groupId: string, userId: string): Promise<void> {
+    const token = tokenManager.getToken()
+    const res = await fetch(`${API_BASE}/group-members/${groupId}/members/${userId}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error(data.message || "Không thể kick thành viên khỏi nhóm")
     }
   },
 
@@ -1430,69 +1511,89 @@ export const api = {
     limit: number = 10,
     decayFactor: number = 1
   ): Promise<{ posts: Post[]; hasMore: boolean }> {
-    const response = await fetch(
-      `${API_BASE}/posts/by-group/${groupId}?page=${page}&limit=${limit}&decayFactor=${decayFactor}`,
-      {
-        headers: {
-          Authorization: `Bearer ${tokenManager.getToken()}`,
-        },
+    try {
+      const token = tokenManager.getToken()
+      const response = await fetch(
+        `${API_BASE}/posts/by-group/${groupId}?page=${page}&limit=${limit}&decayFactor=${decayFactor}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        }
+      )
+
+      if (!response.ok) {
+        // If unauthorized, forbidden, or not found, return empty posts instead of throwing
+        if (response.status === 401 || response.status === 403 || response.status === 404) {
+          console.log(`Group posts not accessible (status ${response.status}), returning empty array`)
+          return { posts: [], hasMore: false }
+        }
+        // For other errors, log but still return empty to avoid breaking the page
+        console.error(`Failed to load group posts (status ${response.status})`)
+        return { posts: [], hasMore: false }
       }
-    )
 
-    if (!response.ok) {
-      throw new Error("Không thể tải bài viết của nhóm")
-    }
+      const data = await response.json()
 
-    const data = await response.json()
+      // Check if data structure is valid
+      if (!data.data || !data.data.items || !Array.isArray(data.data.items)) {
+        console.log("Invalid data structure for group posts, returning empty array")
+        return { posts: [], hasMore: false }
+      }
 
-    // Transform BE data to frontend Post interface
-    const posts: Post[] = data.data.items.map((item: any) => ({
-      id: item.id,
-      title: item.title,
-      content: item.content,
-      excerpt: item.excerpt || item.content.substring(0, 200),
-      slug: item.slug,
-      authorId: item.author.id,
-      author: {
-        id: item.author.id,
-        username: item.author.username,
-        displayName: item.author.displayName || item.author.username,
-        name: item.author.displayName || item.author.username,
-        email: "",
-        avatar: item.author.avatar || "/placeholder-user.jpg",
-        bio: "",
-        location: "",
-        website: "",
-        followers: 0,
-        following: 0,
-        joinedAt: new Date(),
-      },
-      group: item.group
-        ? {
-            id: item.group.id,
-            name: item.group.name,
-            slug: item.group.slug,
-            description: "",
-            memberCount: 0,
-            postCount: 0,
-            tag: [],
-            tags: [],
-            createdAt: new Date(),
-          }
-        : undefined,
-      tags: item.tags?.map((tag: any) => tag.name || tag) || [],
-      reactions: item.reactions || [],
-      likeCount: item.likeCount || 0,
-      commentCount: item.commentCount || 0,
-      isLiked: item.isLiked || false,
-      attachments: [],
-      createdAt: new Date(item.createdAt),
-      updatedAt: new Date(item.updatedAt),
-    }))
+      // Transform BE data to frontend Post interface
+      const posts: Post[] = data.data.items.map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        content: item.content,
+        excerpt: item.excerpt || item.content.substring(0, 200),
+        slug: item.slug,
+        authorId: item.author.id,
+        author: {
+          id: item.author.id,
+          username: item.author.username,
+          displayName: item.author.displayName || item.author.username,
+          name: item.author.displayName || item.author.username,
+          email: "",
+          avatar: item.author.avatar || "/placeholder-user.jpg",
+          bio: "",
+          location: "",
+          website: "",
+          followers: 0,
+          following: 0,
+          joinedAt: new Date(),
+        },
+        group: item.group
+          ? {
+              id: item.group.id,
+              name: item.group.name,
+              slug: item.group.slug,
+              description: "",
+              memberCount: 0,
+              postCount: 0,
+              tag: [],
+              tags: [],
+              createdAt: new Date(),
+            }
+          : undefined,
+        tags: item.tags?.map((tag: any) => tag.name || tag) || [],
+        reactions: item.reactions || [],
+        likeCount: item.likeCount || 0,
+        commentCount: item.commentCount || 0,
+        isLiked: item.isLiked || false,
+        attachments: [],
+        createdAt: new Date(item.createdAt),
+        updatedAt: new Date(item.updatedAt),
+      }))
 
-    return {
-      posts,
-      hasMore: data.data.hasMore || false,
+      return {
+        posts,
+        hasMore: data.data.hasMore || false,
+      }
+    } catch (error) {
+      console.error("Error loading group posts:", error)
+      return { posts: [], hasMore: false }
     }
   },
 
