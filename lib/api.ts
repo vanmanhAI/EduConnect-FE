@@ -1877,6 +1877,92 @@ export const api = {
     await delay(200)
   },
 
+  // Bookmarks
+  async bookmarkPost(postId: string): Promise<{
+    id: string
+    createdAt: string
+    post: {
+      id: string
+      title: string
+      slug: string
+      excerpt: string
+      author: {
+        id: string
+        username: string
+        displayName: string
+        avatar: string | null
+      }
+    }
+  }> {
+    const response = await fetch(`${API_BASE}/bookmarks`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenManager.getToken()}`,
+      },
+      body: JSON.stringify({ postId }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Không thể lưu bài viết")
+    }
+
+    const result = await response.json()
+    return result.data
+  },
+
+  async unbookmarkPost(postId: string): Promise<void> {
+    const response = await fetch(`${API_BASE}/bookmarks/${postId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${tokenManager.getToken()}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Không thể bỏ lưu bài viết")
+    }
+  },
+
+  async getBookmarkedPosts(
+    page: number = 1,
+    limit: number = 10
+  ): Promise<{
+    items: Array<{
+      id: string
+      createdAt: string
+      post: {
+        id: string
+        title: string
+        slug: string
+        excerpt: string
+        author: {
+          id: string
+          username: string
+          displayName: string
+          avatar: string | null
+        }
+      }
+    }>
+    hasMore: boolean
+  }> {
+    const response = await fetch(`${API_BASE}/bookmarks/me?page=${page}&limit=${limit}`, {
+      headers: {
+        Authorization: `Bearer ${tokenManager.getToken()}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Không thể tải danh sách bài viết đã lưu")
+    }
+
+    const result = await response.json()
+    return result.data
+  },
+
   // Comments
   async getComments(
     postId: string,
