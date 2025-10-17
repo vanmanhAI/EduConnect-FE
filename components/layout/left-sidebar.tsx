@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Users, MessageSquare, Trophy, Award, UserPlus, X, PenSquare, Video } from "lucide-react"
+import { Home, Users, MessageSquare, Trophy, Award, UserPlus, X, PenSquare, Video, Bookmark } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -20,6 +20,7 @@ const navigation = [
   { name: "Mọi người", href: "/people", icon: UserPlus },
   { name: "Bảng xếp hạng", href: "/leaderboard", icon: Trophy },
   { name: "Huy hiệu", href: "/badges", icon: Award },
+  { name: "Đã lưu", href: "/bookmarks", icon: Bookmark },
 ]
 
 export function LeftSidebar({ isOpen, onClose }: LeftSidebarProps) {

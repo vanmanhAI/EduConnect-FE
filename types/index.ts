@@ -108,6 +108,7 @@ export interface Post {
   updatedAt: Date
   isLiked?: boolean
   likeCount: number
+  isBookmarked?: boolean
 }
 
 export interface Comment {

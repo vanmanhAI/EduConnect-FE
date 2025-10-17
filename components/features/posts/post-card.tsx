@@ -34,13 +34,25 @@ interface PostCardProps {
   compact?: boolean
   onPostUpdated?: () => void
   onPostDeleted?: () => void
+  onPostUnbookmarked?: (postId: string) => void
+  hideActions?: boolean
 }
 
-export function PostCard({ post, showGroup = true, compact = false, onPostUpdated, onPostDeleted }: PostCardProps) {
+export function PostCard({
+  post,
+  showGroup = true,
+  compact = false,
+  onPostUpdated,
+  onPostDeleted,
+  onPostUnbookmarked,
+  hideActions = false,
+}: PostCardProps) {
   const { toast } = useToast()
   const [isLiked, setIsLiked] = useState(post.isLiked || false)
   const [likeCount, setLikeCount] = useState(post.likeCount)
+  const [isBookmarked, setIsBookmarked] = useState(post.isBookmarked || false)
   const [loading, setLoading] = useState(false)
+  const [bookmarkLoading, setBookmarkLoading] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editTitle, setEditTitle] = useState(post.title)
   const [editContent, setEditContent] = useState(post.content)
@@ -97,6 +109,44 @@ export function PostCard({ post, showGroup = true, compact = false, onPostUpdate
     } else {
       // Fallback: copy to clipboard
       navigator.clipboard.writeText(`${window.location.origin}/posts/${post.id}`)
+    }
+  }
+
+  const handleBookmark = async () => {
+    if (bookmarkLoading) return
+
+    setBookmarkLoading(true)
+    try {
+      if (isBookmarked) {
+        // Unbookmark
+        await api.unbookmarkPost(post.id)
+        setIsBookmarked(false)
+        toast({
+          title: "Thành công",
+          description: "Đã bỏ lưu bài viết",
+        })
+        // Call callback if provided (for bookmarks page to remove from list)
+        if (onPostUnbookmarked) {
+          onPostUnbookmarked(post.id)
+        }
+      } else {
+        // Bookmark
+        await api.bookmarkPost(post.id)
+        setIsBookmarked(true)
+        toast({
+          title: "Thành công",
+          description: "Đã lưu bài viết",
+        })
+      }
+    } catch (error: any) {
+      console.error("Failed to toggle bookmark:", error)
+      toast({
+        title: "Lỗi",
+        description: error.message || "Không thể cập nhật trạng thái lưu bài viết. Vui lòng thử lại.",
+        variant: "destructive",
+      })
+    } finally {
+      setBookmarkLoading(false)
     }
   }
 
@@ -242,9 +292,9 @@ export function PostCard({ post, showGroup = true, compact = false, onPostUpdate
                   </DropdownMenuItem>
                 </>
               )}
-              <DropdownMenuItem>
-                <Bookmark className="mr-2 h-4 w-4" />
-                Lưu bài viết
+              <DropdownMenuItem onClick={handleBookmark} disabled={bookmarkLoading}>
+                <Bookmark className={`mr-2 h-4 w-4 ${isBookmarked ? "fill-current" : ""}`} />
+                {bookmarkLoading ? "Đang xử lý..." : isBookmarked ? "Bỏ lưu bài viết" : "Lưu bài viết"}
               </DropdownMenuItem>
               <DropdownMenuItem>Báo cáo</DropdownMenuItem>
             </DropdownMenuContent>
@@ -293,23 +343,27 @@ export function PostCard({ post, showGroup = true, compact = false, onPostUpdate
         {/* Actions */}
         <div className="flex items-center justify-between pt-2 border-t">
           <div className="flex items-center space-x-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleLike}
-              disabled={loading}
-              className={isLiked ? "text-red-500 hover:text-red-600" : ""}
-            >
-              <Heart className={`mr-1 h-4 w-4 ${isLiked ? "fill-current" : ""}`} />
-              {likeCount}
-            </Button>
+            {!hideActions && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLike}
+                  disabled={loading}
+                  className={isLiked ? "text-red-500 hover:text-red-600" : ""}
+                >
+                  <Heart className={`mr-1 h-4 w-4 ${isLiked ? "fill-current" : ""}`} />
+                  {likeCount}
+                </Button>
 
-            <Button variant="ghost" size="sm" asChild>
-              <Link href={`/posts/${post.id}#comments`}>
-                <MessageCircle className="mr-1 h-4 w-4" />
-                {post.commentCount}
-              </Link>
-            </Button>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href={`/posts/${post.id}#comments`}>
+                    <MessageCircle className="mr-1 h-4 w-4" />
+                    {post.commentCount}
+                  </Link>
+                </Button>
+              </>
+            )}
 
             <Button variant="ghost" size="sm" onClick={handleShare}>
               <Share2 className="mr-1 h-4 w-4" />
