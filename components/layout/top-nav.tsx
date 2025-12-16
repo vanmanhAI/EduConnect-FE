@@ -20,6 +20,7 @@ import { AvatarWithStatus } from "@/components/ui/avatar-with-status"
 import { SearchCommand } from "@/components/features/search/search-command"
 import { api } from "@/lib/api"
 import { useAuth } from "@/contexts/auth-context"
+import { NotificationCenter } from "@/components/notifications/notification-center"
 import { formatPoints } from "@/lib/utils"
 
 interface TopNavProps {
@@ -29,23 +30,7 @@ interface TopNavProps {
 export function TopNav({ onMenuClick }: TopNavProps) {
   const router = useRouter()
   const { user, logout: authLogout } = useAuth()
-  const [notifications, setNotifications] = useState<any[]>([])
   const [searchOpen, setSearchOpen] = useState(false)
-
-  useEffect(() => {
-    const loadNotifications = async () => {
-      try {
-        const userNotifications = await api.getNotifications()
-        setNotifications(userNotifications)
-      } catch (error) {
-        console.error("Failed to load notifications:", error)
-      }
-    }
-
-    if (user) {
-      loadNotifications()
-    }
-  }, [user])
 
   useEffect(() => {
     const handleKeyDown = (e: Event) => {
@@ -60,12 +45,9 @@ export function TopNav({ onMenuClick }: TopNavProps) {
     return () => document.removeEventListener("keydown", handleKeyDown)
   }, [])
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length
-
   const handleLogout = () => {
     // Sử dụng logout function từ AuthContext
     authLogout()
-    setNotifications([])
     router.push("/login")
   }
 
@@ -139,21 +121,7 @@ export function TopNav({ onMenuClick }: TopNavProps) {
             )}
 
             {/* Notifications */}
-            {user && (
-              <Button variant="ghost" size="icon" className="relative hover:bg-educonnect-primary/10" asChild>
-                <Link href="/notifications">
-                  <Bell className="h-5 w-5" />
-                  {unreadCount > 0 && (
-                    <Badge
-                      variant="destructive"
-                      className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs animate-pulse"
-                    >
-                      {unreadCount > 9 ? "9+" : unreadCount}
-                    </Badge>
-                  )}
-                </Link>
-              </Button>
-            )}
+            {user && <NotificationCenter />}
 
             {/* User menu */}
             {user && (

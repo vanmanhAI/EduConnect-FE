@@ -4,6 +4,8 @@ import { Inter, JetBrains_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/contexts/auth-context"
+import { NotificationProvider } from "@/components/notifications/notification-provider"
+import { NotificationContainer } from "@/components/notifications/notification-container"
 import { Suspense } from "react"
 import "./globals.css"
 
@@ -35,7 +37,12 @@ export default function RootLayout({
       <body className={`font-sans ${inter.variable} ${jetbrainsMono.variable} antialiased`}>
         <Suspense fallback={null}>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-            <AuthProvider>{children}</AuthProvider>
+            <AuthProvider>
+              <NotificationProvider>
+                {children}
+                <NotificationContainer />
+              </NotificationProvider>
+            </AuthProvider>
           </ThemeProvider>
         </Suspense>
         <Analytics />
