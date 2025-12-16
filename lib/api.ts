@@ -555,6 +555,56 @@ export const api = {
   },
 
   async getUsers(): Promise<User[]> {
+    const token = tokenManager.getToken()
+
+    try {
+      // Try real API first
+      const response = await fetch(`${API_BASE}/users?onlineOnly=true`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        cache: "no-store",
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const users = data.data || data || []
+
+        // Transform backend response to frontend User type
+        return users.map((user: any) => ({
+          id: user.id,
+          username: user.username,
+          email: "", // Backend doesn't return email for privacy
+          displayName: user.displayName,
+          avatar: user.avatar || null,
+          bio: user.bio || "",
+          location: "",
+          website: "",
+          linkedin: "",
+          github: "",
+          points: user.points || 0,
+          level: user.level || 1,
+          experiencePoints: 0,
+          followersCount: user.followersCount || 0,
+          followingCount: user.followingCount || 0,
+          postsCount: 0,
+          groupsCount: 0,
+          experienceLevel: "beginner" as const,
+          profileVisibility: user.profileVisibility || "public",
+          badges: [],
+          followers: user.followersCount || 0,
+          following: user.followingCount || 0,
+          joinedAt: new Date(),
+          isFollowing: user.isFollowing || false,
+          isOnline: user.isOnline || false,
+        }))
+      }
+    } catch (error) {
+      console.warn("Real API getUsers failed, falling back to mock:", error)
+    }
+
+    // Fallback to mock data
     await delay(400)
     return mockUsers
   },
@@ -2179,57 +2229,408 @@ export const api = {
     }
   },
 
-  // Chat
+  // Chat - Real API calls
   async getChatThreads(): Promise<ChatThread[]> {
-    await delay(400)
-    return mockChatThreads
+    const token = tokenManager.getToken()
+    if (!token) {
+      throw new Error("Token không tồn tại")
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/conversations`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      const conversations = data.data || data
+
+      // Transform backend conversations to ChatThread format
+      return conversations.map((conv: any) => {
+        const participants = conv.participants || []
+
+        // Lấy lastMessage từ backend (nếu có populate) hoặc tạo default
+        let lastMessage: {
+          id: string
+          content: string
+          timestamp: Date
+          senderId: string
+        }
+
+        if (conv.lastMessage) {
+          // Backend đã populate lastMessage
+          lastMessage = {
+            id: conv.lastMessage.id || conv.lastMessageId || "",
+            content: conv.lastMessage.content || "",
+            timestamp: conv.lastMessage.createdAt
+              ? new Date(conv.lastMessage.createdAt)
+              : conv.lastActivityAt
+                ? new Date(conv.lastActivityAt)
+                : new Date(conv.createdAt || Date.now()),
+            senderId: conv.lastMessage.senderId || conv.lastMessage.sender?.id || "",
+          }
+        } else if (conv.lastMessageId) {
+          // Chỉ có lastMessageId, không có content
+          lastMessage = {
+            id: conv.lastMessageId,
+            content: "Chưa có tin nhắn",
+            timestamp: conv.lastActivityAt ? new Date(conv.lastActivityAt) : new Date(conv.createdAt || Date.now()),
+            senderId: "",
+          }
+        } else {
+          // Không có lastMessage
+          lastMessage = {
+            id: "",
+            content: "Chưa có tin nhắn",
+            timestamp: new Date(conv.createdAt || Date.now()),
+            senderId: "",
+          }
+        }
+
+        // Lấy unreadCount từ conversation (backend đã populate sẵn từ participant của currentUser)
+        const unreadCount = conv.unreadCount !== undefined ? conv.unreadCount : 0
+
+        return {
+          id: conv.id,
+          type: conv.type || "direct",
+          participants: participants.map((p: any) => ({
+            id: p.userId || p.user?.id || "",
+            name: p.user?.displayName || p.user?.username || "",
+            displayName: p.user?.displayName || p.user?.username || "",
+            avatar: p.user?.avatar || null,
+            isOnline: p.user?.isOnline || false,
+          })),
+          lastMessage,
+          unreadCount,
+        }
+      })
+    } catch (error) {
+      console.error("Failed to fetch conversations:", error)
+      // Fallback to mock data
+      await delay(400)
+      return mockChatThreads
+    }
   },
 
   async getChatMessages(threadId: string): Promise<ChatMessage[]> {
-    await delay(300)
-    return mockChatMessages[threadId] || []
+    const token = tokenManager.getToken()
+    if (!token) {
+      throw new Error("Token không tồn tại")
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/messages/conversations/${threadId}?limit=50&offset=0`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        cache: "no-store",
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      const messages = data.data || data
+
+      // Transform backend messages to ChatMessage format
+      return messages.map((msg: any) => ({
+        id: msg.id,
+        threadId: msg.conversationId,
+        conversationId: msg.conversationId,
+        senderId: msg.senderId || msg.sender?.id || "",
+        sender: msg.sender
+          ? {
+              id: msg.sender.id,
+              displayName: msg.sender.displayName || msg.sender.username || "",
+              username: msg.sender.username || "",
+              avatar: msg.sender.avatar || null,
+            }
+          : undefined,
+        content: msg.content || "",
+        type: msg.type || "text",
+        timestamp: new Date(msg.createdAt || Date.now()),
+        createdAt: new Date(msg.createdAt || Date.now()),
+        isRead: true, // TODO: Implement read status from participants
+        replyToId: msg.replyToId,
+      }))
+    } catch (error) {
+      console.error("Failed to fetch messages:", error)
+      // Không fallback về mock data, throw error để frontend xử lý
+      throw error
+    }
   },
 
-  async sendMessage(message: Omit<ChatMessage, "id">): Promise<ChatMessage> {
-    await delay(200)
-    const newMessage: ChatMessage = {
-      ...message,
-      id: Date.now().toString(),
+  async createConversation(participantIds: string[]): Promise<ChatThread> {
+    const token = tokenManager.getToken()
+    if (!token) {
+      throw new Error("Token không tồn tại")
     }
 
-    // Add to mock data
-    if (!mockChatMessages[message.threadId]) {
-      mockChatMessages[message.threadId] = []
-    }
-    mockChatMessages[message.threadId].push(newMessage)
+    try {
+      const response = await fetch(`${API_BASE}/conversations`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          type: "direct",
+          participantIds,
+        }),
+      })
 
-    return newMessage
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      const conversation = data.data || data
+
+      // Transform backend conversation to ChatThread format
+      const participants = conversation.participants || []
+      let lastMessage: {
+        id: string
+        content: string
+        timestamp: Date
+        senderId: string
+      }
+
+      if (conversation.lastMessage) {
+        lastMessage = {
+          id: conversation.lastMessage.id || conversation.lastMessageId || "",
+          content: conversation.lastMessage.content || "",
+          timestamp: conversation.lastMessage.createdAt
+            ? new Date(conversation.lastMessage.createdAt)
+            : conversation.lastActivityAt
+              ? new Date(conversation.lastActivityAt)
+              : new Date(conversation.createdAt || Date.now()),
+          senderId: conversation.lastMessage.senderId || conversation.lastMessage.sender?.id || "",
+        }
+      } else {
+        lastMessage = {
+          id: "",
+          content: "Chưa có tin nhắn",
+          timestamp: new Date(conversation.createdAt || Date.now()),
+          senderId: "",
+        }
+      }
+
+      return {
+        id: conversation.id,
+        type: conversation.type || "direct",
+        participants: participants.map((p: any) => ({
+          id: p.userId || p.user?.id || "",
+          name: p.user?.displayName || p.user?.username || "",
+          displayName: p.user?.displayName || p.user?.username || "",
+          avatar: p.user?.avatar || null,
+          isOnline: p.user?.isOnline || false,
+        })),
+        lastMessage,
+        unreadCount: conversation.unreadCount !== undefined ? conversation.unreadCount : 0,
+      }
+    } catch (error) {
+      console.error("Failed to create conversation:", error)
+      throw error
+    }
+  },
+
+  async sendMessage(
+    message: Omit<ChatMessage, "id" | "sender"> & { sender?: ChatMessage["sender"] }
+  ): Promise<ChatMessage> {
+    // Note: Real-time messages should be sent via Socket.IO
+    // This REST API endpoint is available as fallback
+    const token = tokenManager.getToken()
+    if (!token) {
+      throw new Error("Token không tồn tại")
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/messages`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          conversationId: message.conversationId,
+          content: message.content,
+          type: message.type || "text",
+          replyToId: (message as any).replyToId,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      const msg = data.data || data
+
+      return {
+        id: msg.id,
+        threadId: msg.conversationId,
+        conversationId: msg.conversationId,
+        senderId: msg.senderId || msg.sender?.id || "",
+        sender: msg.sender
+          ? {
+              id: msg.sender.id,
+              username: msg.sender.username || "",
+              email: msg.sender.email || "",
+              displayName: msg.sender.displayName || msg.sender.username || "",
+              avatar: msg.sender.avatar || null,
+              points: msg.sender.points || 0,
+              level: msg.sender.level || 1,
+              badges: msg.sender.badges || [],
+              followers: msg.sender.followers || msg.sender.followersCount || 0,
+              following: msg.sender.following || msg.sender.followingCount || 0,
+              joinedAt: msg.sender.joinedAt ? new Date(msg.sender.joinedAt) : new Date(),
+              bio: msg.sender.bio,
+              location: msg.sender.location,
+              website: msg.sender.website,
+              linkedin: msg.sender.linkedin,
+              github: msg.sender.github,
+              experiencePoints: msg.sender.experiencePoints,
+              postsCount: msg.sender.postsCount,
+              groupsCount: msg.sender.groupsCount,
+              experienceLevel: msg.sender.experienceLevel,
+              profileVisibility: msg.sender.profileVisibility,
+              isFollowing: msg.sender.isFollowing,
+              isOnline: msg.sender.isOnline,
+            }
+          : {
+              id: msg.senderId || "",
+              username: "",
+              email: "",
+              displayName: "",
+              avatar: null,
+              points: 0,
+              level: 1,
+              badges: [],
+              followers: 0,
+              following: 0,
+              joinedAt: new Date(),
+            },
+        content: msg.content || "",
+        type: msg.type || "text",
+        timestamp: new Date(msg.createdAt || Date.now()),
+        createdAt: new Date(msg.createdAt || Date.now()),
+        isRead: true,
+      }
+    } catch (error) {
+      console.error("Failed to send message:", error)
+      // Fallback to mock
+      await delay(200)
+      const newMessage: ChatMessage = {
+        ...message,
+        sender: message.sender || {
+          id: message.senderId || "",
+          username: "",
+          email: "",
+          displayName: "",
+          avatar: null,
+          points: 0,
+          level: 1,
+          badges: [],
+          followers: 0,
+          following: 0,
+          joinedAt: new Date(),
+        },
+        id: Date.now().toString(),
+      }
+      if (!mockChatMessages[message.threadId]) {
+        mockChatMessages[message.threadId] = []
+      }
+      mockChatMessages[message.threadId].push(newMessage)
+      return newMessage
+    }
   },
 
   async getConversations(): Promise<Conversation[]> {
-    await delay(400)
-    return []
+    // Alias for getChatThreads but return Conversation format
+    const threads = await this.getChatThreads()
+    return threads.map((thread) => ({
+      id: thread.id,
+      type: thread.participants.length > 2 ? "group" : "direct",
+      name:
+        thread.participants.length > 2
+          ? thread.participants.map((p) => p.displayName).join(", ")
+          : thread.participants[0]?.displayName || "",
+      participants: thread.participants.map((p) => ({
+        id: p.id,
+        username: p.name || "",
+        displayName: p.displayName || p.name || "",
+        avatar: p.avatar || null,
+        email: "",
+        points: 0,
+        level: 1,
+        bio: null,
+        location: null,
+        website: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })) as any, // Type assertion needed due to type mismatch
+      lastMessage: thread.lastMessage
+        ? {
+            id: thread.lastMessage.id,
+            threadId: thread.id,
+            content: thread.lastMessage.content,
+            senderId: thread.lastMessage.senderId,
+            sender: {
+              id: thread.lastMessage.senderId,
+              displayName: "",
+              username: "",
+              avatar: null,
+              email: "",
+              points: 0,
+              level: 1,
+              bio: null,
+              location: null,
+              website: null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            } as any,
+            conversationId: thread.id,
+            type: "text" as const,
+            timestamp: thread.lastMessage.timestamp,
+            createdAt: thread.lastMessage.timestamp,
+            isRead: true,
+          }
+        : undefined,
+      unreadCount: thread.unreadCount,
+      createdAt: (thread as any).createdAt || new Date(),
+      updatedAt: (thread as any).updatedAt || new Date(),
+    }))
   },
 
   async getMessages(conversationId: string): Promise<ChatMessage[]> {
-    await delay(300)
-    return []
+    // Alias for getChatMessages
+    return this.getChatMessages(conversationId)
   },
 
   async sendChatMessage(conversationId: string, content: string): Promise<ChatMessage> {
-    await delay(200)
-    return {
-      id: Date.now().toString(),
+    // Alias for sendMessage
+    return this.sendMessage({
       threadId: conversationId,
-      content,
-      senderId: "1",
-      sender: mockUsers[0],
       conversationId,
+      content,
+      senderId: "current-user", // Will be replaced by backend
       type: "text",
       timestamp: new Date(),
       createdAt: new Date(),
       isRead: false,
-    }
+    })
   },
 
   // Gamification
@@ -2251,28 +2652,76 @@ export const api = {
 
   // Notifications
   async getNotifications(): Promise<Notification[]> {
-    await delay(300)
-    return [
-      {
-        id: "1",
-        type: "like",
-        title: "Bài viết được thích",
-        message: "Trần Thị B đã thích bài viết của bạn",
-        isRead: false,
-        createdAt: new Date(),
-        actionUrl: "/posts/1",
-        actorId: "2",
-        actor: mockUsers[1],
+    const token = tokenManager.getToken()
+    if (!token) {
+      throw new Error("Chưa đăng nhập")
+    }
+
+    const res = await fetch(`${API_BASE}/notifications`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
       },
-    ]
+    })
+
+    if (!res.ok) {
+      throw new Error("Không thể lấy danh sách thông báo")
+    }
+
+    const response = await res.json()
+    // Backend trả về format: { statusCode, success, message, data }
+    const notifications = response.data || response || []
+
+    // Đảm bảo là array
+    if (!Array.isArray(notifications)) {
+      console.warn("Notifications response is not an array:", notifications)
+      return []
+    }
+
+    return notifications.map((n: any) => ({
+      ...n,
+      createdAt: new Date(n.createdAt),
+      readAt: n.readAt ? new Date(n.readAt) : undefined,
+    }))
   },
 
   async markNotificationRead(id: string): Promise<void> {
-    await delay(200)
+    const token = tokenManager.getToken()
+    if (!token) {
+      throw new Error("Chưa đăng nhập")
+    }
+
+    const res = await fetch(`${API_BASE}/notifications/${id}/read`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    })
+
+    if (!res.ok) {
+      throw new Error("Không thể đánh dấu thông báo đã đọc")
+    }
   },
 
   async markAllNotificationsRead(): Promise<void> {
-    await delay(300)
+    const token = tokenManager.getToken()
+    if (!token) {
+      throw new Error("Chưa đăng nhập")
+    }
+
+    const res = await fetch(`${API_BASE}/notifications/read-all`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    })
+
+    if (!res.ok) {
+      throw new Error("Không thể đánh dấu tất cả thông báo đã đọc")
+    }
   },
 
   // Search
@@ -2569,5 +3018,183 @@ export const api = {
     // Fallback to mock data
     await delay(300)
     return ["react hooks", "javascript tips", "css grid", "typescript", "nextjs", "tailwind css", "nodejs", "python"]
+  },
+
+  // Video Calls
+  async createVideoCall(data: {
+    participantIds: string[]
+    title?: string
+    description?: string
+    groupId?: string
+    maxParticipants?: number
+  }) {
+    const token = tokenManager.getToken()
+    if (!token) {
+      throw new Error("Token không tồn tại")
+    }
+
+    const response = await fetch(`${API_BASE}/video-calls`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(data),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || `HTTP error! status: ${response.status}`)
+    }
+
+    const result = await response.json()
+    return result.data || result
+  },
+
+  async getVideoCall(callId: string) {
+    const token = tokenManager.getToken()
+    if (!token) {
+      throw new Error("Token không tồn tại")
+    }
+
+    const response = await fetch(`${API_BASE}/video-calls/${callId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || `HTTP error! status: ${response.status}`)
+    }
+
+    const result = await response.json()
+    return result.data || result
+  },
+
+  async getVideoCallByRoomId(roomId: string) {
+    const token = tokenManager.getToken()
+    if (!token) {
+      throw new Error("Token không tồn tại")
+    }
+
+    const response = await fetch(`${API_BASE}/video-calls/room/${roomId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || `HTTP error! status: ${response.status}`)
+    }
+
+    const result = await response.json()
+    return result.data || result
+  },
+
+  async getVideoCalls(filters?: { userId?: string; groupId?: string; status?: string; callType?: string }) {
+    const token = tokenManager.getToken()
+    if (!token) {
+      throw new Error("Token không tồn tại")
+    }
+
+    const params = new URLSearchParams()
+    if (filters?.userId) params.append("userId", filters.userId)
+    if (filters?.groupId) params.append("groupId", filters.groupId)
+    if (filters?.status) params.append("status", filters.status)
+    if (filters?.callType) params.append("callType", filters.callType)
+
+    const response = await fetch(`${API_BASE}/video-calls?${params.toString()}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || `HTTP error! status: ${response.status}`)
+    }
+
+    const result = await response.json()
+    return result.data || result
+  },
+
+  async startVideoCall(callId: string) {
+    const token = tokenManager.getToken()
+    if (!token) {
+      throw new Error("Token không tồn tại")
+    }
+
+    const response = await fetch(`${API_BASE}/video-calls/${callId}/start`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || `HTTP error! status: ${response.status}`)
+    }
+
+    const result = await response.json()
+    return result.data || result
+  },
+
+  async endVideoCall(callId: string) {
+    const token = tokenManager.getToken()
+    if (!token) {
+      throw new Error("Token không tồn tại")
+    }
+
+    const response = await fetch(`${API_BASE}/video-calls/${callId}/end`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || `HTTP error! status: ${response.status}`)
+    }
+
+    const result = await response.json()
+    return result.data || result
+  },
+
+  async getStunConfig() {
+    const token = tokenManager.getToken()
+    if (!token) {
+      throw new Error("Token không tồn tại")
+    }
+
+    const response = await fetch(`${API_BASE}/video-calls/stun-config`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || `HTTP error! status: ${response.status}`)
+    }
+
+    const result = await response.json()
+    return result.data || result
   },
 }
