@@ -264,11 +264,12 @@ export interface GroupLeaderboardApiResponse {
 
 export interface Notification {
   id: string
-  type: "like" | "comment" | "follow" | "group_invite" | "badge" | "mention"
+  type: "like" | "comment" | "follow" | "group_invite" | "badge" | "mention" | "message" | "system" | "achievement"
   title: string
   message: string
   isRead: boolean
   createdAt: Date
+  readAt?: Date
   actionUrl?: string
   actorId?: string
   actor?: User
