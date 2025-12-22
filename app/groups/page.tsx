@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { Search, Filter, Plus, X } from "lucide-react"
+import { Search, Filter, Plus, X, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -53,6 +53,9 @@ export default function GroupsPage() {
   const [history, setHistory] = useState<string[]>([])
   const searchingSeqRef = useRef(0)
   const debouncedSearchRef = useRef<((q: string, f: string, p: number) => void) | null>(null)
+
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
   const popularCategories = [
     "javascript",
@@ -265,7 +268,7 @@ export default function GroupsPage() {
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
-  const handleLoadMore = async () => {
+  const handleLoadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return
 
     try {
@@ -281,9 +284,9 @@ export default function GroupsPage() {
     } finally {
       setLoadingMore(false)
     }
-  }
+  }, [loadingMore, hasMore, page, pageSize])
 
-  const handleLoadMoreJoined = async () => {
+  const handleLoadMoreJoined = useCallback(async () => {
     if (joinedLoadingMore || !joinedHasMore) return
 
     try {
@@ -298,9 +301,9 @@ export default function GroupsPage() {
     } finally {
       setJoinedLoadingMore(false)
     }
-  }
+  }, [joinedLoadingMore, joinedHasMore, joinedPage, pageSize])
 
-  const handleLoadMoreTrending = async () => {
+  const handleLoadMoreTrending = useCallback(async () => {
     if (trendingLoadingMore || !trendingHasMore) return
 
     try {
@@ -315,7 +318,46 @@ export default function GroupsPage() {
     } finally {
       setTrendingLoadingMore(false)
     }
-  }
+  }, [trendingLoadingMore, trendingHasMore, trendingPage])
+
+  // Infinite scroll observer
+  useEffect(() => {
+    if (loading) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          if (activeTab === "all" && hasMore && !loadingMore && !searchQuery.trim()) {
+            handleLoadMore()
+          } else if (activeTab === "joined" && joinedHasMore && !joinedLoadingMore) {
+            handleLoadMoreJoined()
+          } else if (activeTab === "trending" && trendingHasMore && !trendingLoadingMore) {
+            handleLoadMoreTrending()
+          }
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current)
+    }
+
+    return () => observer.disconnect()
+  }, [
+    loading,
+    activeTab,
+    hasMore,
+    loadingMore,
+    searchQuery,
+    joinedHasMore,
+    joinedLoadingMore,
+    trendingHasMore,
+    trendingLoadingMore,
+    handleLoadMore,
+    handleLoadMoreJoined,
+    handleLoadMoreTrending,
+  ])
 
   const handleRetry = () => {
     setError(null)
@@ -632,40 +674,25 @@ export default function GroupsPage() {
               </div>
             )}
 
-            {/* Load More Button - show for "all", "joined", and "trending" tabs when not searching */}
+            {/* Infinite Scroll Trigger - show for "all", "joined", and "trending" tabs when not searching */}
             {!loading && !error && !searchQuery.trim() && (
               <>
-                {activeTab === "all" && hasMore && (
-                  <div className="mt-8 flex justify-center">
-                    <Button variant="outline" onClick={handleLoadMore} disabled={loadingMore} className="min-w-[200px]">
-                      {loadingMore ? "Đang tải..." : "Xem thêm"}
-                    </Button>
+                {(activeTab === "all" && (hasMore || loadingMore)) ||
+                (activeTab === "joined" && (joinedHasMore || joinedLoadingMore)) ||
+                (activeTab === "trending" && (trendingHasMore || trendingLoadingMore)) ? (
+                  <div ref={loadMoreRef} className="flex justify-center py-8">
+                    {(activeTab === "all" && loadingMore) ||
+                    (activeTab === "joined" && joinedLoadingMore) ||
+                    (activeTab === "trending" && trendingLoadingMore) ? (
+                      <div className="flex items-center space-x-2 text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span>Đang tải thêm...</span>
+                      </div>
+                    ) : (
+                      <div className="h-4" /> /* Invisible trigger target */
+                    )}
                   </div>
-                )}
-                {activeTab === "joined" && joinedHasMore && (
-                  <div className="mt-8 flex justify-center">
-                    <Button
-                      variant="outline"
-                      onClick={handleLoadMoreJoined}
-                      disabled={joinedLoadingMore}
-                      className="min-w-[200px]"
-                    >
-                      {joinedLoadingMore ? "Đang tải..." : "Xem thêm"}
-                    </Button>
-                  </div>
-                )}
-                {activeTab === "trending" && trendingHasMore && (
-                  <div className="mt-8 flex justify-center">
-                    <Button
-                      variant="outline"
-                      onClick={handleLoadMoreTrending}
-                      disabled={trendingLoadingMore}
-                      className="min-w-[200px]"
-                    >
-                      {trendingLoadingMore ? "Đang tải..." : "Xem thêm"}
-                    </Button>
-                  </div>
-                )}
+                ) : null}
               </>
             )}
           </TabsContent>
