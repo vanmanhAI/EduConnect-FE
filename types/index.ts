@@ -193,13 +193,39 @@ export interface Conversation {
 export interface Badge {
   id: string
   name: string
+  slug?: string
   description: string
-  icon: string
-  color: string
-  criteria: string
+  icon?: string
+  color?: string
+  criteria?: string
   rarity: "common" | "rare" | "epic" | "legendary"
-  earnedAt?: Date
+  pointsRequired?: number
+  isEarned?: boolean
+  earnedAt?: Date | null
   progress?: number
+}
+
+export interface BadgeRarityStat {
+  rarity: "common" | "rare" | "epic" | "legendary"
+  total: number
+  earned: number
+}
+
+export interface BadgeSummary {
+  totalBadges: number
+  earnedBadges: number
+  notEarnedBadges: number
+  completionRate: number
+  rarityStats: BadgeRarityStat[]
+  points: number
+  level: number
+}
+
+export interface BadgeSummaryApiResponse {
+  statusCode: number
+  success: boolean
+  message: string
+  data: BadgeSummary
 }
 
 export interface LeaderboardEntry {

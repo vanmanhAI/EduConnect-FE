@@ -2634,9 +2634,157 @@ export const api = {
   },
 
   // Gamification
-  async getBadges(): Promise<Badge[]> {
-    await delay(300)
-    return mockBadges
+  async getBadges(status: "all" | "earned" | "unearned" = "all"): Promise<Badge[]> {
+    try {
+      const token = tokenManager.getToken()
+      if (!token) {
+        throw new Error("Chưa đăng nhập")
+      }
+
+      const url = `${API_BASE}/badges?status=${status}`
+      console.log("Fetching badges from:", url)
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      console.log("Badges response status:", res.status, res.statusText)
+
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.error("API Error Response:", errorText)
+        throw new Error(`Không thể tải danh sách huy hiệu: ${res.status} ${res.statusText}`)
+      }
+
+      const response: {
+        statusCode: number
+        success: boolean
+        message: string
+        data: Array<{
+          id: string
+          name: string
+          slug: string
+          description: string
+          rarity: "common" | "rare" | "epic" | "legendary"
+          pointsRequired: number
+          isEarned: boolean
+          earnedAt: string | null
+        }>
+      } = await res.json()
+
+      console.log("Badges response:", response)
+
+      if (!response.success) {
+        throw new Error(response.message || "Không thể tải danh sách huy hiệu")
+      }
+
+      // Map backend data to frontend Badge type
+      const badges: Badge[] = response.data.map((badge) => ({
+        id: badge.id,
+        name: badge.name,
+        slug: badge.slug,
+        description: badge.description,
+        rarity: badge.rarity,
+        pointsRequired: badge.pointsRequired,
+        isEarned: badge.isEarned,
+        earnedAt: badge.earnedAt ? new Date(badge.earnedAt) : null,
+        // Add default values for optional fields
+        icon: this.getBadgeIcon(badge.rarity),
+        color: this.getBadgeColor(badge.rarity),
+        progress: badge.isEarned ? 100 : 0,
+      }))
+
+      return badges
+    } catch (error) {
+      console.error("Error fetching badges:", error)
+      throw error
+    }
+  },
+
+  getBadgeIcon(rarity: string): string {
+    const icons: Record<string, string> = {
+      common: "🌟",
+      rare: "⭐",
+      epic: "🔥",
+      legendary: "🏆",
+    }
+    return icons[rarity] || "🎖️"
+  },
+
+  getBadgeColor(rarity: string): string {
+    const colors: Record<string, string> = {
+      common: "gray",
+      rare: "blue",
+      epic: "purple",
+      legendary: "yellow",
+    }
+    return colors[rarity] || "gray"
+  },
+
+  async getBadgeSummary(): Promise<{
+    totalBadges: number
+    earnedBadges: number
+    notEarnedBadges: number
+    completionRate: number
+    rarityStats: Array<{ rarity: string; total: number; earned: number }>
+    points: number
+    level: number
+  }> {
+    try {
+      const token = tokenManager.getToken()
+      if (!token) {
+        throw new Error("Chưa đăng nhập")
+      }
+
+      const url = `${API_BASE}/badges/summary`
+      console.log("Fetching badge summary from:", url)
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      console.log("Badge summary response status:", res.status, res.statusText)
+
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.error("API Error Response:", errorText)
+        throw new Error(`Không thể tải thông tin huy hiệu: ${res.status} ${res.statusText}`)
+      }
+
+      const response: {
+        statusCode: number
+        success: boolean
+        message: string
+        data: {
+          totalBadges: number
+          earnedBadges: number
+          notEarnedBadges: number
+          completionRate: number
+          rarityStats: Array<{ rarity: string; total: number; earned: number }>
+          points: number
+          level: number
+        }
+      } = await res.json()
+
+      console.log("Badge summary response:", response)
+
+      if (!response.success) {
+        throw new Error(response.message || "Không thể tải thông tin huy hiệu")
+      }
+
+      return response.data
+    } catch (error) {
+      console.error("Error fetching badge summary:", error)
+      throw error
+    }
   },
 
   async getLeaderboard(
