@@ -203,58 +203,64 @@ export default function LeaderboardPage() {
 
         {/* Top 3 Podium */}
         {!loading && !error && leaderboard.length >= 3 && (
-          <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4 max-w-2xl mx-auto">
             {/* 2nd Place */}
             <div className="text-center pt-8">
               <div className="relative">
-                <Avatar className="h-16 w-16 mx-auto border-4 border-gray-300">
+                <Avatar className="h-12 w-12 sm:h-16 sm:w-16 mx-auto border-4 border-gray-300">
                   <AvatarImage src={leaderboard[1]?.user.avatar || "/placeholder.svg"} />
                   <AvatarFallback>{leaderboard[1]?.user.displayName.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div className="absolute -top-2 -right-2">
-                  <Medal className="h-6 w-6 text-gray-400" />
+                  <Medal className="h-5 w-5 sm:h-6 sm:w-6 text-gray-400" />
                 </div>
               </div>
-              <h3 className="font-semibold mt-2">{leaderboard[1]?.user.displayName}</h3>
-              <p className="text-sm text-muted-foreground">{formatNumber(leaderboard[1]?.points)} điểm</p>
+              <h3 className="font-semibold mt-2 text-sm sm:text-base line-clamp-1">
+                {leaderboard[1]?.user.displayName}
+              </h3>
+              <p className="text-xs sm:text-sm text-muted-foreground">{formatNumber(leaderboard[1]?.points)} điểm</p>
               <div className="h-16 bg-gray-200 rounded-t-lg mt-4 flex items-end justify-center pb-2">
-                <span className="text-2xl font-bold text-gray-600">2</span>
+                <span className="text-xl sm:text-2xl font-bold text-gray-600">2</span>
               </div>
             </div>
 
             {/* 1st Place */}
             <div className="text-center">
               <div className="relative">
-                <Avatar className="h-20 w-20 mx-auto border-4 border-yellow-400">
+                <Avatar className="h-16 w-16 sm:h-20 sm:w-20 mx-auto border-4 border-yellow-400">
                   <AvatarImage src={leaderboard[0]?.user.avatar || "/placeholder.svg"} />
                   <AvatarFallback>{leaderboard[0]?.user.displayName.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div className="absolute -top-3 -right-3">
-                  <Crown className="h-8 w-8 text-yellow-500" />
+                  <Crown className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-500" />
                 </div>
               </div>
-              <h3 className="font-bold mt-2 text-lg">{leaderboard[0]?.user.displayName}</h3>
-              <p className="text-educonnect-primary font-semibold">{formatNumber(leaderboard[0]?.points)} điểm</p>
+              <h3 className="font-bold mt-2 text-base sm:text-lg line-clamp-1">{leaderboard[0]?.user.displayName}</h3>
+              <p className="text-educonnect-primary font-semibold text-sm sm:text-base">
+                {formatNumber(leaderboard[0]?.points)} điểm
+              </p>
               <div className="h-24 bg-gradient-to-t from-yellow-400 to-yellow-300 rounded-t-lg mt-4 flex items-end justify-center pb-2">
-                <span className="text-3xl font-bold text-white">1</span>
+                <span className="text-2xl sm:text-3xl font-bold text-white">1</span>
               </div>
             </div>
 
             {/* 3rd Place */}
             <div className="text-center pt-12">
               <div className="relative">
-                <Avatar className="h-14 w-14 mx-auto border-4 border-amber-500">
+                <Avatar className="h-10 w-10 sm:h-14 sm:w-14 mx-auto border-4 border-amber-500">
                   <AvatarImage src={leaderboard[2]?.user.avatar || "/placeholder.svg"} />
                   <AvatarFallback>{leaderboard[2]?.user.displayName.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div className="absolute -top-2 -right-2">
-                  <Award className="h-5 w-5 text-amber-600" />
+                  <Award className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" />
                 </div>
               </div>
-              <h3 className="font-semibold mt-2">{leaderboard[2]?.user.displayName}</h3>
-              <p className="text-sm text-muted-foreground">{formatNumber(leaderboard[2]?.points)} điểm</p>
+              <h3 className="font-semibold mt-2 text-sm sm:text-base line-clamp-1">
+                {leaderboard[2]?.user.displayName}
+              </h3>
+              <p className="text-xs sm:text-sm text-muted-foreground">{formatNumber(leaderboard[2]?.points)} điểm</p>
               <div className="h-12 bg-amber-200 rounded-t-lg mt-4 flex items-end justify-center pb-2">
-                <span className="text-xl font-bold text-amber-700">3</span>
+                <span className="text-lg sm:text-xl font-bold text-amber-700">3</span>
               </div>
             </div>
           </div>
@@ -263,14 +269,19 @@ export default function LeaderboardPage() {
         {/* Full Leaderboard */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
+            <CardTitle className="flex items-center justify-between text-base sm:text-lg">
               <span>Bảng xếp hạng {getPeriodLabel(activePeriod)}</span>
-              <Badge variant="secondary">{leaderboard.length} thành viên</Badge>
+              <Badge variant="secondary" className="hidden sm:inline-flex">
+                {leaderboard.length} thành viên
+              </Badge>
+              <Badge variant="secondary" className="sm:hidden text-xs">
+                {leaderboard.length}
+              </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0 sm:p-6">
             {loading && (
-              <div className="space-y-4">
+              <div className="space-y-4 p-4">
                 {[...Array(10)].map((_, i) => (
                   <div key={i} className="flex items-center space-x-4 p-4 border rounded-lg">
                     <div className="h-10 w-10 bg-muted rounded-full animate-pulse" />
@@ -284,7 +295,11 @@ export default function LeaderboardPage() {
               </div>
             )}
 
-            {error && <ErrorState description={error} onRetry={handleRetry} />}
+            {error && (
+              <div className="p-4">
+                <ErrorState description={error} onRetry={handleRetry} />
+              </div>
+            )}
 
             {!loading && !error && leaderboard.length === 0 && (
               <EmptyState
@@ -294,24 +309,29 @@ export default function LeaderboardPage() {
             )}
 
             {!loading && !error && leaderboard.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-1 sm:space-y-2">
                 {leaderboard.map((entry, index) => (
                   <div
                     key={entry.user.id}
                     className={cn(
-                      "flex items-center space-x-4 p-4 rounded-lg transition-colors hover:bg-muted/50",
+                      "flex items-center space-x-2 sm:space-x-4 p-3 sm:p-4 rounded-lg transition-colors hover:bg-muted/50 border-b last:border-0 sm:border-0",
                       entry.rank <= 3 && "bg-gradient-to-r from-muted/30 to-transparent"
                     )}
                   >
                     {/* Rank */}
-                    <div className="flex items-center justify-center w-12">
-                      <div className={cn("px-2 py-1 rounded-full text-xs font-bold", getRankBadgeColor(entry.rank))}>
+                    <div className="flex items-center justify-center w-8 sm:w-12 flex-shrink-0">
+                      <div
+                        className={cn(
+                          "px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold",
+                          getRankBadgeColor(entry.rank)
+                        )}
+                      >
                         {entry.rank <= 3 ? getRankIcon(entry.rank) : `#${entry.rank}`}
                       </div>
                     </div>
 
                     {/* User Info */}
-                    <Avatar className="h-10 w-10">
+                    <Avatar className="h-8 w-8 sm:h-10 sm:w-10 border border-border">
                       <AvatarImage src={entry.user.avatar || "/placeholder.svg"} />
                       <AvatarFallback>
                         {entry.user.displayName?.charAt(0) || entry.user.username?.charAt(0) || "?"}
@@ -321,17 +341,19 @@ export default function LeaderboardPage() {
                     <div className="flex-1 min-w-0">
                       <Link
                         href={`/profile/${entry.user.id}`}
-                        className="font-medium hover:text-educonnect-primary transition-colors"
+                        className="font-medium text-sm sm:text-base hover:text-educonnect-primary transition-colors truncate block"
                       >
                         {entry.user.displayName || entry.user.username || "Unknown User"}
                       </Link>
-                      <p className="text-sm text-muted-foreground">@{entry.user.username}</p>
+                      <p className="text-xs text-muted-foreground truncate">@{entry.user.username}</p>
                     </div>
 
                     {/* Points and Change */}
-                    <div className="text-right">
-                      <div className="font-semibold text-educonnect-primary">{formatNumber(entry.points)}</div>
-                      <div className="flex items-center space-x-1 text-xs">
+                    <div className="text-right flex-shrink-0">
+                      <div className="font-semibold text-educonnect-primary text-sm sm:text-base">
+                        {formatNumber(entry.points)}
+                      </div>
+                      <div className="flex items-center justify-end space-x-1 text-[10px] sm:text-xs">
                         {getChangeIcon(entry.change)}
                         <span
                           className={cn(
@@ -347,9 +369,9 @@ export default function LeaderboardPage() {
                       </div>
                     </div>
 
-                    {/* Level Badge */}
-                    <Badge variant="outline" className="text-xs">
-                      Level {entry.user.level}
+                    {/* Level Badge - Hidden on very small screens */}
+                    <Badge variant="outline" className="text-[10px] sm:text-xs hidden sm:inline-flex">
+                      Lv.{entry.user.level}
                     </Badge>
                   </div>
                 ))}

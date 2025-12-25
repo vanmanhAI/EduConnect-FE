@@ -18,14 +18,16 @@ export function AppShell({ children, showRightSidebar = true, rightSidebarConten
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-background pt-16">
       <TopNav onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
 
       <div className="flex">
         <LeftSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         <main className="flex-1 lg:ml-64">
-          <div className={cn("mx-auto max-w-7xl px-4 py-6", showRightSidebar ? "lg:pr-80" : "")}>{children}</div>
+          <div className={cn("mx-auto max-w-7xl px-3 py-4 lg:px-4 lg:py-6", showRightSidebar ? "lg:pr-80" : "")}>
+            {children}
+          </div>
         </main>
 
         {showRightSidebar && <RightSidebar>{rightSidebarContent}</RightSidebar>}
