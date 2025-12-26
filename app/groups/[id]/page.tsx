@@ -2,9 +2,9 @@
 
 import type React from "react"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { Users, Settings, Share2, MoreHorizontal, Send, Smile, Paperclip, Trash2 } from "lucide-react"
+import { Users, Settings, Share2, MoreHorizontal, Send, Smile, Paperclip, Trash2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -57,6 +57,9 @@ export default function GroupDetailPage() {
   const [postsPage, setPostsPage] = useState(1)
   const [postsHasMore, setPostsHasMore] = useState(false)
   const [postsLoadingMore, setPostsLoadingMore] = useState(false)
+
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const loadGroupData = async () => {
@@ -305,7 +308,7 @@ export default function GroupDetailPage() {
     }
   }
 
-  const handleLoadMorePosts = async () => {
+  const handleLoadMorePosts = useCallback(async () => {
     if (postsLoadingMore || !postsHasMore || !group) return
 
     try {
@@ -324,7 +327,29 @@ export default function GroupDetailPage() {
     } finally {
       setPostsLoadingMore(false)
     }
-  }
+  }, [postsLoadingMore, postsHasMore, group, postsPage, toast])
+
+  // Infinite scroll observer
+  useEffect(() => {
+    if (loading) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          if (activeTab === "posts" && postsHasMore && !postsLoadingMore) {
+            handleLoadMorePosts()
+          }
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current)
+    }
+
+    return () => observer.disconnect()
+  }, [loading, activeTab, postsHasMore, postsLoadingMore, handleLoadMorePosts])
 
   const handleReloadPosts = async () => {
     if (!group) return
@@ -555,17 +580,17 @@ export default function GroupDetailPage() {
                     ))}
                   </div>
 
-                  {postsHasMore && (
-                    <div className="flex justify-center pt-4">
-                      <Button
-                        size="lg"
-                        variant="outline"
-                        onClick={handleLoadMorePosts}
-                        disabled={postsLoadingMore}
-                        className="min-w-[200px]"
-                      >
-                        {postsLoadingMore ? "Đang tải..." : "Xem thêm"}
-                      </Button>
+                  {/* Infinite Scroll Trigger */}
+                  {(postsHasMore || postsLoadingMore) && (
+                    <div ref={loadMoreRef} className="flex justify-center py-4">
+                      {postsLoadingMore ? (
+                        <div className="flex items-center space-x-2 text-muted-foreground">
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          <span>Đang tải thêm...</span>
+                        </div>
+                      ) : (
+                        <div className="h-4" /> /* Invisible trigger target */
+                      )}
                     </div>
                   )}
                 </>
