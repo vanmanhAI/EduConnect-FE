@@ -193,13 +193,39 @@ export interface Conversation {
 export interface Badge {
   id: string
   name: string
+  slug?: string
   description: string
-  icon: string
-  color: string
-  criteria: string
+  icon?: string
+  color?: string
+  criteria?: string
   rarity: "common" | "rare" | "epic" | "legendary"
-  earnedAt?: Date
+  pointsRequired?: number
+  isEarned?: boolean
+  earnedAt?: Date | null
   progress?: number
+}
+
+export interface BadgeRarityStat {
+  rarity: "common" | "rare" | "epic" | "legendary"
+  total: number
+  earned: number
+}
+
+export interface BadgeSummary {
+  totalBadges: number
+  earnedBadges: number
+  notEarnedBadges: number
+  completionRate: number
+  rarityStats: BadgeRarityStat[]
+  points: number
+  level: number
+}
+
+export interface BadgeSummaryApiResponse {
+  statusCode: number
+  success: boolean
+  message: string
+  data: BadgeSummary
 }
 
 export interface LeaderboardEntry {
@@ -210,13 +236,66 @@ export interface LeaderboardEntry {
   period: "weekly" | "monthly" | "all-time"
 }
 
+export interface LeaderboardItem {
+  userId: string
+  score: number
+  rank: number
+  username: string
+  avatar: string | null
+  displayName: string
+}
+
+export interface LeaderboardApiResponse {
+  statusCode: number
+  success: boolean
+  message: string
+  data: {
+    type: "users"
+    period: "weekly" | "monthly" | "all_time"
+    page: number
+    limit: number
+    items: LeaderboardItem[]
+  }
+}
+
+export interface GroupLeaderboardItem {
+  groupId: string
+  score: number
+  rank: number
+  name: string
+  slug: string
+  avatar: string | null
+  coverImage: string | null
+}
+
+export interface GroupLeaderboardEntry {
+  rank: number
+  group: Group
+  points: number
+  period: "weekly" | "monthly" | "all-time"
+}
+
+export interface GroupLeaderboardApiResponse {
+  statusCode: number
+  success: boolean
+  message: string
+  data: {
+    type: "groups"
+    period: "weekly" | "monthly" | "all_time"
+    page: number
+    limit: number
+    items: GroupLeaderboardItem[]
+  }
+}
+
 export interface Notification {
   id: string
-  type: "like" | "comment" | "follow" | "group_invite" | "badge" | "mention"
+  type: "message" | "like" | "comment" | "follow" | "group_invite" | "badge" | "mention" | "system" | "achievement"
   title: string
   message: string
   isRead: boolean
   createdAt: Date
+  readAt?: Date
   actionUrl?: string
   actorId?: string
   actor?: User

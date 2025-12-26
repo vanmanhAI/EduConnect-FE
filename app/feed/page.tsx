@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import Link from "next/link"
-import { Plus, Filter, TrendingUp, Search, BarChart3 } from "lucide-react"
+import { Plus, Filter, TrendingUp, Search, BarChart3, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -52,6 +52,9 @@ export default function FeedPage() {
   const [followingPage, setFollowingPage] = useState(1)
   const [followingHasMore, setFollowingHasMore] = useState(false)
   const [followingLoadingMore, setFollowingLoadingMore] = useState(false)
+
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
   // Search states
   const [searchQuery, setSearchQuery] = useState("")
@@ -133,7 +136,7 @@ export default function FeedPage() {
     setShowSearchResults(true)
   }
 
-  const handleLoadMore = async () => {
+  const handleLoadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return
 
     try {
@@ -148,9 +151,9 @@ export default function FeedPage() {
     } finally {
       setLoadingMore(false)
     }
-  }
+  }, [loadingMore, hasMore, page])
 
-  const handleLoadMoreTrending = async () => {
+  const handleLoadMoreTrending = useCallback(async () => {
     if (trendingLoadingMore || !trendingHasMore) return
 
     try {
@@ -165,9 +168,9 @@ export default function FeedPage() {
     } finally {
       setTrendingLoadingMore(false)
     }
-  }
+  }, [trendingLoadingMore, trendingHasMore, trendingPage])
 
-  const handleLoadMoreFollowing = async () => {
+  const handleLoadMoreFollowing = useCallback(async () => {
     if (followingLoadingMore || !followingHasMore) return
 
     try {
@@ -182,7 +185,45 @@ export default function FeedPage() {
     } finally {
       setFollowingLoadingMore(false)
     }
-  }
+  }, [followingLoadingMore, followingHasMore, followingPage])
+
+  // Infinite scroll observer
+  useEffect(() => {
+    if (loading) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          if (activeTab === "all" && hasMore && !loadingMore) {
+            handleLoadMore()
+          } else if (activeTab === "following" && followingHasMore && !followingLoadingMore) {
+            handleLoadMoreFollowing()
+          } else if (activeTab === "trending" && trendingHasMore && !trendingLoadingMore) {
+            handleLoadMoreTrending()
+          }
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current)
+    }
+
+    return () => observer.disconnect()
+  }, [
+    loading,
+    activeTab,
+    hasMore,
+    loadingMore,
+    followingHasMore,
+    followingLoadingMore,
+    trendingHasMore,
+    trendingLoadingMore,
+    handleLoadMore,
+    handleLoadMoreFollowing,
+    handleLoadMoreTrending,
+  ])
 
   const handleRetry = () => {
     setError(null)
@@ -376,17 +417,17 @@ export default function FeedPage() {
                       ))}
                     </div>
 
-                    {/* Load More Button */}
-                    {hasMore && (
-                      <div className="flex justify-center mt-8">
-                        <Button
-                          variant="outline"
-                          onClick={handleLoadMore}
-                          disabled={loadingMore}
-                          className="min-w-[200px]"
-                        >
-                          {loadingMore ? "Đang tải..." : "Xem thêm"}
-                        </Button>
+                    {/* Infinite Scroll Trigger */}
+                    {(hasMore || loadingMore) && (
+                      <div ref={loadMoreRef} className="flex justify-center py-4">
+                        {loadingMore ? (
+                          <div className="flex items-center space-x-2 text-muted-foreground">
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            <span>Đang tải thêm...</span>
+                          </div>
+                        ) : (
+                          <div className="h-4" /> /* Invisible trigger target */
+                        )}
                       </div>
                     )}
                   </>
@@ -428,17 +469,17 @@ export default function FeedPage() {
                       ))}
                     </div>
 
-                    {followingHasMore && (
-                      <div className="flex justify-center pt-4">
-                        <Button
-                          size="lg"
-                          variant="outline"
-                          onClick={handleLoadMoreFollowing}
-                          disabled={followingLoadingMore}
-                          className="min-w-[200px]"
-                        >
-                          {followingLoadingMore ? "Đang tải..." : "Xem thêm"}
-                        </Button>
+                    {/* Infinite Scroll Trigger */}
+                    {(followingHasMore || followingLoadingMore) && (
+                      <div ref={loadMoreRef} className="flex justify-center py-4">
+                        {followingLoadingMore ? (
+                          <div className="flex items-center space-x-2 text-muted-foreground">
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            <span>Đang tải thêm...</span>
+                          </div>
+                        ) : (
+                          <div className="h-4" /> /* Invisible trigger target */
+                        )}
                       </div>
                     )}
                   </>
@@ -480,17 +521,17 @@ export default function FeedPage() {
                       ))}
                     </div>
 
-                    {/* Load More Button for Trending */}
-                    {trendingHasMore && (
-                      <div className="flex justify-center mt-8">
-                        <Button
-                          variant="outline"
-                          onClick={handleLoadMoreTrending}
-                          disabled={trendingLoadingMore}
-                          className="min-w-[200px]"
-                        >
-                          {trendingLoadingMore ? "Đang tải..." : "Xem thêm"}
-                        </Button>
+                    {/* Infinite Scroll Trigger */}
+                    {(trendingHasMore || trendingLoadingMore) && (
+                      <div ref={loadMoreRef} className="flex justify-center py-4">
+                        {trendingLoadingMore ? (
+                          <div className="flex items-center space-x-2 text-muted-foreground">
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            <span>Đang tải thêm...</span>
+                          </div>
+                        ) : (
+                          <div className="h-4" /> /* Invisible trigger target */
+                        )}
                       </div>
                     )}
                   </>

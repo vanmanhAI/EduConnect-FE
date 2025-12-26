@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useParams } from "next/navigation"
 import { AppShell } from "@/components/layout/app-shell"
 import { PostCard } from "@/components/features/posts/post-card"
@@ -13,7 +13,7 @@ import { ErrorState } from "@/components/ui/error-state"
 import { useToast } from "@/hooks/use-toast"
 import { api } from "@/lib/api"
 import { tokenManager } from "@/lib/auth"
-import { Send } from "lucide-react"
+import { Send, Loader2 } from "lucide-react"
 import type { Post, Comment } from "@/types"
 
 export default function PostDetailPage() {
@@ -30,6 +30,9 @@ export default function PostDetailPage() {
   const [commentsPage, setCommentsPage] = useState(1)
   const [hasMoreComments, setHasMoreComments] = useState(false)
   const [loadingMoreComments, setLoadingMoreComments] = useState(false)
+
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
   const currentUser = tokenManager.getUser()
 
@@ -72,8 +75,8 @@ export default function PostDetailPage() {
     }
   }
 
-  const handleLoadMoreComments = async () => {
-    if (loadingMoreComments) return
+  const handleLoadMoreComments = useCallback(async () => {
+    if (loadingMoreComments || !hasMoreComments) return
 
     setLoadingMoreComments(true)
     try {
@@ -81,7 +84,27 @@ export default function PostDetailPage() {
     } finally {
       setLoadingMoreComments(false)
     }
-  }
+  }, [loadingMoreComments, hasMoreComments, commentsPage])
+
+  // Infinite scroll observer for comments
+  useEffect(() => {
+    if (loading) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreComments && !loadingMoreComments) {
+          handleLoadMoreComments()
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current)
+    }
+
+    return () => observer.disconnect()
+  }, [loading, hasMoreComments, loadingMoreComments, handleLoadMoreComments])
 
   const handleAddComment = async () => {
     if (!newComment.trim()) {
@@ -187,12 +210,17 @@ export default function PostDetailPage() {
                   />
                 ))}
 
-                {/* Load More Button */}
-                {hasMoreComments && (
-                  <div className="flex justify-center pt-4">
-                    <Button variant="outline" onClick={handleLoadMoreComments} disabled={loadingMoreComments}>
-                      {loadingMoreComments ? "Đang tải..." : "Xem thêm bình luận"}
-                    </Button>
+                {/* Infinite Scroll Trigger */}
+                {(hasMoreComments || loadingMoreComments) && (
+                  <div ref={loadMoreRef} className="flex justify-center py-4">
+                    {loadingMoreComments ? (
+                      <div className="flex items-center space-x-2 text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span>Đang tải thêm bình luận...</span>
+                      </div>
+                    ) : (
+                      <div className="h-4" /> /* Invisible trigger target */
+                    )}
                   </div>
                 )}
               </>

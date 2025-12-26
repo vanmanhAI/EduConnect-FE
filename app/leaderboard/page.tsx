@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import Link from "next/link"
-import { Trophy, Medal, Award, TrendingUp, TrendingDown, Minus, Crown, Star } from "lucide-react"
+import { Trophy, Medal, Award, TrendingUp, TrendingDown, Minus, Crown, Star, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -44,18 +44,36 @@ const getRankBadgeColor = (rank: number) => {
 
 export default function LeaderboardPage() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const [groupLeaderboard, setGroupLeaderboard] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activePeriod, setActivePeriod] = useState<"weekly" | "monthly" | "all-time">("weekly")
   const [activeType, setActiveType] = useState<"individual" | "groups">("individual")
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
+  // Load initial data when period or type changes
   useEffect(() => {
     const loadLeaderboard = async () => {
       try {
         setLoading(true)
         setError(null)
-        const data = await api.getLeaderboard(activePeriod)
-        setLeaderboard(data)
+        setPage(1)
+
+        if (activeType === "individual") {
+          const { items, hasMore: moreAvailable } = await api.getLeaderboard(activePeriod, 1, 20)
+          setLeaderboard(items)
+          setGroupLeaderboard([])
+          setHasMore(moreAvailable)
+        } else {
+          const { items, hasMore: moreAvailable } = await api.getGroupLeaderboard(activePeriod, 1, 20)
+          setGroupLeaderboard(items)
+          setLeaderboard([])
+          setHasMore(moreAvailable)
+        }
       } catch (err) {
         setError("Không thể tải bảng xếp hạng. Vui lòng thử lại.")
       } finally {
@@ -64,15 +82,80 @@ export default function LeaderboardPage() {
     }
 
     loadLeaderboard()
-  }, [activePeriod])
+  }, [activePeriod, activeType])
+
+  // Load more data for infinite scroll
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return
+
+    try {
+      setLoadingMore(true)
+      const nextPage = page + 1
+
+      if (activeType === "individual") {
+        const { items, hasMore: moreAvailable } = await api.getLeaderboard(activePeriod, nextPage, 20)
+        setLeaderboard((prev) => [...prev, ...items])
+        setHasMore(moreAvailable)
+      } else {
+        const { items, hasMore: moreAvailable } = await api.getGroupLeaderboard(activePeriod, nextPage, 20)
+        setGroupLeaderboard((prev) => [...prev, ...items])
+        setHasMore(moreAvailable)
+      }
+
+      setPage(nextPage)
+    } catch (err) {
+      console.error("Error loading more:", err)
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [activePeriod, activeType, page, loadingMore, hasMore])
+
+  // Set up intersection observer for infinite scroll
+  useEffect(() => {
+    if (loading) return
+
+    if (observerRef.current) {
+      observerRef.current.disconnect()
+    }
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          loadMore()
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    if (loadMoreRef.current) {
+      observerRef.current.observe(loadMoreRef.current)
+    }
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect()
+      }
+    }
+  }, [loading, hasMore, loadingMore, loadMore])
 
   const handleRetry = () => {
     setError(null)
     const loadLeaderboard = async () => {
       try {
         setLoading(true)
-        const data = await api.getLeaderboard(activePeriod)
-        setLeaderboard(data)
+        setPage(1)
+
+        if (activeType === "individual") {
+          const { items, hasMore: moreAvailable } = await api.getLeaderboard(activePeriod, 1, 20)
+          setLeaderboard(items)
+          setGroupLeaderboard([])
+          setHasMore(moreAvailable)
+        } else {
+          const { items, hasMore: moreAvailable } = await api.getGroupLeaderboard(activePeriod, 1, 20)
+          setGroupLeaderboard(items)
+          setLeaderboard([])
+          setHasMore(moreAvailable)
+        }
       } catch (err) {
         setError("Không thể tải bảng xếp hạng. Vui lòng thử lại.")
       } finally {
@@ -131,19 +214,31 @@ export default function LeaderboardPage() {
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Tổng thành viên:</span>
-            <span className="font-medium">{leaderboard.length}</span>
+            <span className="text-muted-foreground">
+              {activeType === "individual" ? "Tổng thành viên:" : "Tổng nhóm:"}
+            </span>
+            <span className="font-medium">
+              {activeType === "individual" ? leaderboard.length : groupLeaderboard.length}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Hoạt động tuần này:</span>
-            <span className="font-medium">{Math.floor(leaderboard.length * 0.7)}</span>
+            <span className="font-medium">
+              {activeType === "individual"
+                ? Math.floor(leaderboard.length * 0.7)
+                : Math.floor(groupLeaderboard.length * 0.7)}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Điểm trung bình:</span>
             <span className="font-medium">
-              {leaderboard.length > 0
-                ? Math.floor(leaderboard.reduce((sum, entry) => sum + entry.points, 0) / leaderboard.length)
-                : 0}
+              {activeType === "individual"
+                ? leaderboard.length > 0
+                  ? Math.floor(leaderboard.reduce((sum, entry) => sum + entry.points, 0) / leaderboard.length)
+                  : 0
+                : groupLeaderboard.length > 0
+                  ? Math.floor(groupLeaderboard.reduce((sum, entry) => sum + entry.points, 0) / groupLeaderboard.length)
+                  : 0}
             </span>
           </div>
         </CardContent>
@@ -204,6 +299,8 @@ export default function LeaderboardPage() {
         {/* Top 3 Podium */}
         {!loading && !error && leaderboard.length >= 3 && (
           <div className="grid grid-cols-3 gap-2 sm:gap-4 max-w-2xl mx-auto">
+        {!loading && !error && activeType === "individual" && leaderboard.length >= 3 && (
+          <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto">
             {/* 2nd Place */}
             <div className="text-center pt-8">
               <div className="relative">
@@ -301,7 +398,7 @@ export default function LeaderboardPage() {
               </div>
             )}
 
-            {!loading && !error && leaderboard.length === 0 && (
+            {!loading && !error && activeType === "individual" && leaderboard.length === 0 && (
               <EmptyState
                 title="Chưa có dữ liệu xếp hạng"
                 description="Bảng xếp hạng sẽ được cập nhật khi có hoạt động từ cộng đồng"
@@ -312,7 +409,7 @@ export default function LeaderboardPage() {
               <div className="space-y-1 sm:space-y-2">
                 {leaderboard.map((entry, index) => (
                   <div
-                    key={entry.user.id}
+                    key={`${entry.user.id}-${entry.rank}`}
                     className={cn(
                       "flex items-center space-x-2 sm:space-x-4 p-3 sm:p-4 rounded-lg transition-colors hover:bg-muted/50 border-b last:border-0 sm:border-0",
                       entry.rank <= 3 && "bg-gradient-to-r from-muted/30 to-transparent"
@@ -375,6 +472,19 @@ export default function LeaderboardPage() {
                     </Badge>
                   </div>
                 ))}
+
+                {/* Infinite scroll trigger */}
+                <div ref={loadMoreRef} className="py-4 flex justify-center">
+                  {loadingMore && (
+                    <div className="flex items-center space-x-2 text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span>Đang tải thêm...</span>
+                    </div>
+                  )}
+                  {!loadingMore && !hasMore && leaderboard.length > 0 && (
+                    <span className="text-sm text-muted-foreground">Đã hiển thị tất cả kết quả</span>
+                  )}
+                </div>
               </div>
             )}
           </CardContent>

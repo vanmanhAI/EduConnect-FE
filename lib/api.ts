@@ -2634,20 +2634,354 @@ export const api = {
   },
 
   // Gamification
-  async getBadges(): Promise<Badge[]> {
-    await delay(300)
-    return mockBadges
+  async getBadges(status: "all" | "earned" | "unearned" = "all"): Promise<Badge[]> {
+    try {
+      const token = tokenManager.getToken()
+      if (!token) {
+        throw new Error("Chưa đăng nhập")
+      }
+
+      const url = `${API_BASE}/badges?status=${status}`
+      console.log("Fetching badges from:", url)
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      console.log("Badges response status:", res.status, res.statusText)
+
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.error("API Error Response:", errorText)
+        throw new Error(`Không thể tải danh sách huy hiệu: ${res.status} ${res.statusText}`)
+      }
+
+      const response: {
+        statusCode: number
+        success: boolean
+        message: string
+        data: Array<{
+          id: string
+          name: string
+          slug: string
+          description: string
+          rarity: "common" | "rare" | "epic" | "legendary"
+          pointsRequired: number
+          isEarned: boolean
+          earnedAt: string | null
+        }>
+      } = await res.json()
+
+      console.log("Badges response:", response)
+
+      if (!response.success) {
+        throw new Error(response.message || "Không thể tải danh sách huy hiệu")
+      }
+
+      // Map backend data to frontend Badge type
+      const badges: Badge[] = response.data.map((badge) => ({
+        id: badge.id,
+        name: badge.name,
+        slug: badge.slug,
+        description: badge.description,
+        rarity: badge.rarity,
+        pointsRequired: badge.pointsRequired,
+        isEarned: badge.isEarned,
+        earnedAt: badge.earnedAt ? new Date(badge.earnedAt) : null,
+        // Add default values for optional fields
+        icon: this.getBadgeIcon(badge.rarity),
+        color: this.getBadgeColor(badge.rarity),
+        progress: badge.isEarned ? 100 : 0,
+      }))
+
+      return badges
+    } catch (error) {
+      console.error("Error fetching badges:", error)
+      throw error
+    }
   },
 
-  async getLeaderboard(period: "weekly" | "monthly" | "all-time" = "weekly"): Promise<LeaderboardEntry[]> {
-    await delay(500)
-    return mockUsers.map((user, index) => ({
-      rank: index + 1,
-      user,
-      points: user.points,
-      change: Math.floor(Math.random() * 20) - 10,
-      period,
-    }))
+  getBadgeIcon(rarity: string): string {
+    const icons: Record<string, string> = {
+      common: "🌟",
+      rare: "⭐",
+      epic: "🔥",
+      legendary: "🏆",
+    }
+    return icons[rarity] || "🎖️"
+  },
+
+  getBadgeColor(rarity: string): string {
+    const colors: Record<string, string> = {
+      common: "gray",
+      rare: "blue",
+      epic: "purple",
+      legendary: "yellow",
+    }
+    return colors[rarity] || "gray"
+  },
+
+  async getBadgeSummary(): Promise<{
+    totalBadges: number
+    earnedBadges: number
+    notEarnedBadges: number
+    completionRate: number
+    rarityStats: Array<{ rarity: string; total: number; earned: number }>
+    points: number
+    level: number
+  }> {
+    try {
+      const token = tokenManager.getToken()
+      if (!token) {
+        throw new Error("Chưa đăng nhập")
+      }
+
+      const url = `${API_BASE}/badges/summary`
+      console.log("Fetching badge summary from:", url)
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      console.log("Badge summary response status:", res.status, res.statusText)
+
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.error("API Error Response:", errorText)
+        throw new Error(`Không thể tải thông tin huy hiệu: ${res.status} ${res.statusText}`)
+      }
+
+      const response: {
+        statusCode: number
+        success: boolean
+        message: string
+        data: {
+          totalBadges: number
+          earnedBadges: number
+          notEarnedBadges: number
+          completionRate: number
+          rarityStats: Array<{ rarity: string; total: number; earned: number }>
+          points: number
+          level: number
+        }
+      } = await res.json()
+
+      console.log("Badge summary response:", response)
+
+      if (!response.success) {
+        throw new Error(response.message || "Không thể tải thông tin huy hiệu")
+      }
+
+      return response.data
+    } catch (error) {
+      console.error("Error fetching badge summary:", error)
+      throw error
+    }
+  },
+
+  async getLeaderboard(
+    period: "weekly" | "monthly" | "all-time" = "weekly",
+    page: number = 1,
+    limit: number = 20
+  ): Promise<{ items: LeaderboardEntry[]; hasMore: boolean }> {
+    try {
+      // Convert period format: "all-time" -> "all_time"
+      const apiPeriod = period === "all-time" ? "all_time" : period
+
+      const url = `${API_BASE}/leaderboards/users?period=${apiPeriod}&page=${page}&limit=${limit}`
+      console.log("Fetching leaderboard from:", url)
+
+      const token = tokenManager.getToken()
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      }
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers,
+      })
+
+      console.log("Response status:", res.status, res.statusText)
+
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.error("API Error Response:", errorText)
+        throw new Error(`Không thể tải bảng xếp hạng: ${res.status} ${res.statusText}`)
+      }
+
+      const response: {
+        statusCode: number
+        success: boolean
+        message: string
+        data: {
+          type: "users"
+          period: "weekly" | "monthly" | "all_time"
+          page: number
+          limit: number
+          items: {
+            userId: string
+            score: number
+            rank: number
+            username: string
+            avatar: string | null
+            displayName: string
+          }[]
+        }
+      } = await res.json()
+
+      console.log("Leaderboard API response:", response)
+
+      if (!response.success) {
+        throw new Error(response.message || "Không thể tải bảng xếp hạng")
+      }
+
+      // Validate data structure
+      if (!response.data || !Array.isArray(response.data.items)) {
+        console.error("Invalid response structure:", response)
+        throw new Error("Dữ liệu trả về không hợp lệ")
+      }
+
+      const items = response.data.items.map((item) => ({
+        rank: item.rank,
+        user: {
+          id: item.userId,
+          username: item.username,
+          email: "",
+          displayName: item.displayName,
+          avatar: item.avatar,
+          points: item.score,
+          level: Math.floor(item.score / 100) + 1,
+          badges: [],
+          followers: 0,
+          following: 0,
+          joinedAt: new Date(),
+        },
+        points: item.score,
+        change: 0, // Backend doesn't provide this yet
+        period,
+      }))
+
+      // Check if there are more items (if we got less than limit, no more pages)
+      const hasMore = response.data.items.length === limit
+
+      console.log(`Loaded ${items.length} items, hasMore: ${hasMore}`)
+
+      return { items, hasMore }
+    } catch (error) {
+      console.error("Error fetching leaderboard:", error)
+      throw error
+    }
+  },
+
+  async getGroupLeaderboard(
+    period: "weekly" | "monthly" | "all-time" = "weekly",
+    page: number = 1,
+    limit: number = 20
+  ): Promise<{ items: any[]; hasMore: boolean }> {
+    try {
+      // Convert period format: "all-time" -> "all_time"
+      const apiPeriod = period === "all-time" ? "all_time" : period
+
+      const url = `${API_BASE}/leaderboards/groups?period=${apiPeriod}&page=${page}&limit=${limit}`
+      console.log("Fetching group leaderboard from:", url)
+
+      const token = tokenManager.getToken()
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      }
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers,
+      })
+
+      console.log("Response status:", res.status, res.statusText)
+
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.error("API Error Response:", errorText)
+        throw new Error(`Không thể tải bảng xếp hạng nhóm: ${res.status} ${res.statusText}`)
+      }
+
+      const response: {
+        statusCode: number
+        success: boolean
+        message: string
+        data: {
+          type: "groups"
+          period: "weekly" | "monthly" | "all_time"
+          page: number
+          limit: number
+          items: {
+            groupId: string
+            score: number
+            rank: number
+            name: string
+            slug: string
+            avatar: string | null
+            coverImage: string | null
+          }[]
+        }
+      } = await res.json()
+
+      console.log("Group leaderboard API response:", response)
+
+      if (!response.success) {
+        throw new Error(response.message || "Không thể tải bảng xếp hạng nhóm")
+      }
+
+      // Validate data structure
+      if (!response.data || !Array.isArray(response.data.items)) {
+        console.error("Invalid response structure:", response)
+        throw new Error("Dữ liệu trả về không hợp lệ")
+      }
+
+      const items = response.data.items.map((item) => ({
+        rank: item.rank,
+        group: {
+          id: item.groupId,
+          name: item.name,
+          slug: item.slug,
+          description: "",
+          coverImage: item.coverImage,
+          avatar: item.avatar,
+          memberCount: 0,
+          postCount: 0,
+          tag: [],
+          tags: [],
+          createdAt: new Date(),
+          isPrivate: false,
+        },
+        points: item.score,
+        period,
+      }))
+
+      // Check if there are more items
+      const hasMore = response.data.items.length === limit
+
+      console.log(`Loaded ${items.length} group items, hasMore: ${hasMore}`)
+
+      return { items, hasMore }
+    } catch (error) {
+      console.error("Error fetching group leaderboard:", error)
+      throw error
+    }
   },
 
   // Notifications

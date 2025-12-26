@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Bookmark } from "lucide-react"
+import { useState, useEffect, useRef, useCallback } from "react"
+import { Bookmark, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AppShell } from "@/components/layout/app-shell"
 import { PostCard } from "@/components/features/posts/post-card"
@@ -36,6 +36,9 @@ export default function BookmarksPage() {
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const loadBookmarks = async () => {
@@ -88,7 +91,7 @@ export default function BookmarksPage() {
     loadBookmarks()
   }, [])
 
-  const handleLoadMore = async () => {
+  const handleLoadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return
 
     try {
@@ -135,7 +138,27 @@ export default function BookmarksPage() {
     } finally {
       setLoadingMore(false)
     }
-  }
+  }, [loadingMore, hasMore, page])
+
+  // Infinite scroll observer
+  useEffect(() => {
+    if (loading) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          handleLoadMore()
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current)
+    }
+
+    return () => observer.disconnect()
+  }, [loading, hasMore, loadingMore, handleLoadMore])
 
   const handleRetry = () => {
     setError(null)
@@ -309,12 +332,17 @@ export default function BookmarksPage() {
               ))}
             </div>
 
-            {/* Load More Button */}
-            {hasMore && (
-              <div className="flex justify-center pt-4">
-                <Button variant="outline" onClick={handleLoadMore} disabled={loadingMore} className="min-w-[200px]">
-                  {loadingMore ? "Đang tải..." : "Xem thêm"}
-                </Button>
+            {/* Infinite Scroll Trigger */}
+            {(hasMore || loadingMore) && (
+              <div ref={loadMoreRef} className="flex justify-center py-4">
+                {loadingMore ? (
+                  <div className="flex items-center space-x-2 text-muted-foreground">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>Đang tải thêm...</span>
+                  </div>
+                ) : (
+                  <div className="h-4" /> /* Invisible trigger target */
+                )}
               </div>
             )}
           </>

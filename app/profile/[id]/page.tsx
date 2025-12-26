@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useParams } from "next/navigation"
-import { Calendar, Trophy, UserPlus, UserCheck, Settings, Share2 } from "lucide-react"
+import { useParams, useRouter } from "next/navigation"
+import { Calendar, Trophy, UserPlus, UserCheck, Settings, Share2, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -24,6 +24,7 @@ import type { User, Post, Group, Badge as BadgeType } from "@/types"
 
 export default function ProfilePage() {
   const params = useParams()
+  const router = useRouter()
   const userId = params.id as string
   const { user: currentUser } = useAuth()
 
@@ -42,6 +43,7 @@ export default function ProfilePage() {
   const [following, setFollowing] = useState<User[]>([])
   const [followingLoading, setFollowingLoading] = useState(false)
   const [followingDialogOpen, setFollowingDialogOpen] = useState(false)
+  const [messageLoading, setMessageLoading] = useState(false)
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -242,6 +244,24 @@ export default function ProfilePage() {
     loadFollowing()
   }
 
+  const handleMessageClick = async () => {
+    if (!user || !currentUser) return
+
+    try {
+      setMessageLoading(true)
+      // Tạo hoặc tìm conversation với user này
+      const conversation = await api.createConversation([currentUser.id, user.id])
+      // Navigate đến chat page với conversationId
+      router.push(`/chat?conversationId=${conversation.id}`)
+    } catch (error) {
+      console.error("Failed to create conversation:", error)
+      // Vẫn navigate đến chat page nếu có lỗi (user có thể tự tìm conversation)
+      router.push("/chat")
+    } finally {
+      setMessageLoading(false)
+    }
+  }
+
   const handleRetry = () => {
     setError(null)
     const loadUserData = async () => {
@@ -397,24 +417,36 @@ export default function ProfilePage() {
                       </a>
                     </Button>
                   ) : (
-                    <Button
-                      size="sm"
-                      onClick={handleFollowToggle}
-                      className="min-w-[110px]"
-                      aria-label={isFollowing ? "Bỏ theo dõi" : "Theo dõi"}
-                    >
-                      {isFollowing ? (
-                        <>
-                          <UserCheck className="mr-2 h-4 w-4" />
-                          Đang theo dõi
-                        </>
-                      ) : (
-                        <>
-                          <UserPlus className="mr-2 h-4 w-4" />
-                          Theo dõi
-                        </>
-                      )}
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={handleFollowToggle}
+                        className="min-w-[110px]"
+                        aria-label={isFollowing ? "Bỏ theo dõi" : "Theo dõi"}
+                      >
+                        {isFollowing ? (
+                          <>
+                            <UserCheck className="mr-2 h-4 w-4" />
+                            Đang theo dõi
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            Theo dõi
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleMessageClick}
+                        disabled={messageLoading}
+                        className="bg-educonnect-primary hover:bg-educonnect-primary/90"
+                        aria-label="Nhắn tin"
+                      >
+                        <MessageSquare className="mr-2 h-4 w-4" />
+                        {messageLoading ? "Đang tải..." : "Nhắn tin"}
+                      </Button>
+                    </>
                   )}
 
                   <Button variant="outline" size="sm" aria-label="Chia sẻ hồ sơ">

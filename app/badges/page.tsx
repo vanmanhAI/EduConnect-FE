@@ -49,74 +49,77 @@ export default function BadgesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("all")
-
-  // Mock user progress data
-  const [userProgress] = useState({
-    totalBadges: 12,
-    earnedBadges: 4,
-    points: 1250,
-    level: 5,
-  })
+  const [summary, setSummary] = useState<{
+    totalBadges: number
+    earnedBadges: number
+    notEarnedBadges: number
+    completionRate: number
+    rarityStats: Array<{ rarity: string; total: number; earned: number }>
+    points: number
+    level: number
+  } | null>(null)
 
   useEffect(() => {
-    const loadBadges = async () => {
+    const loadBadgesAndSummary = async () => {
       try {
         setLoading(true)
         setError(null)
+
+        // Load summary from API
+        const summaryData = await api.getBadgeSummary()
+        setSummary(summaryData)
+
+        // Load badges
         const data = await api.getBadges()
 
         // Mock: Add earned status and progress to some badges
         const badgesWithProgress = data.map((badge, index) => ({
           ...badge,
-          earnedAt: index < 4 ? new Date() : undefined, // First 4 badges are earned
-          progress: index < 4 ? 100 : Math.floor(Math.random() * 80), // Progress for unearned badges
+          earnedAt: index < summaryData.earnedBadges ? new Date() : undefined,
+          progress: index < summaryData.earnedBadges ? 100 : Math.floor(Math.random() * 80),
         }))
 
         setBadges(badgesWithProgress)
       } catch (err) {
+        console.error("Error loading badges:", err)
         setError("Không thể tải danh sách huy hiệu. Vui lòng thử lại.")
       } finally {
         setLoading(false)
       }
     }
 
-    loadBadges()
+    loadBadgesAndSummary()
   }, [])
 
   const handleRetry = () => {
     setError(null)
-    const loadBadges = async () => {
+    const loadBadgesAndSummary = async () => {
       try {
         setLoading(true)
-        const data = await api.getBadges()
-        const badgesWithProgress = data.map((badge, index) => ({
-          ...badge,
-          earnedAt: index < 4 ? new Date() : undefined,
-          progress: index < 4 ? 100 : Math.floor(Math.random() * 80),
-        }))
-        setBadges(badgesWithProgress)
+
+        const summaryData = await api.getBadgeSummary()
+        setSummary(summaryData)
+
+        const statusMap: Record<string, "all" | "earned" | "unearned"> = {
+          all: "all",
+          earned: "earned",
+          available: "unearned",
+        }
+        const status = statusMap[activeTab] || "all"
+        const data = await api.getBadges(status)
+
+        setBadges(data)
       } catch (err) {
-        setError("Không thể tải danh sách huy hiệu. Vui lòng thử lại.")
+        setError("Кхông thể tải danh sách huy hiệu. Vui lòng thử lại.")
       } finally {
         setLoading(false)
       }
     }
-    loadBadges()
+    loadBadgesAndSummary()
   }
 
-  const getFilteredBadges = () => {
-    switch (activeTab) {
-      case "earned":
-        return badges.filter((badge) => badge.earnedAt)
-      case "available":
-        return badges.filter((badge) => !badge.earnedAt)
-      default:
-        return badges
-    }
-  }
-
-  const earnedBadges = badges.filter((badge) => badge.earnedAt)
-  const availableBadges = badges.filter((badge) => !badge.earnedAt)
+  const earnedBadges = badges.filter((badge) => badge.isEarned)
+  const availableBadges = badges.filter((badge) => !badge.isEarned)
 
   const rightSidebarContent = (
     <div className="space-y-6">
@@ -141,11 +144,11 @@ export default function BadgesPage() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Điểm hiện tại:</span>
-              <span className="font-medium">{userProgress.points}</span>
+              <span className="font-medium">{summary?.points || 0}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Cấp độ:</span>
-              <span className="font-medium">Level {userProgress.level}</span>
+              <span className="font-medium">Level {summary?.level || 1}</span>
             </div>
           </div>
         </CardContent>
@@ -157,24 +160,24 @@ export default function BadgesPage() {
           <CardTitle className="text-base">Phân loại độ hiếm</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {["common", "rare", "epic", "legendary"].map((rarity) => {
-            const count = badges.filter((b) => b.rarity === rarity).length
-            const earnedCount = earnedBadges.filter((b) => b.rarity === rarity).length
-
+          {summary?.rarityStats.map((stat) => {
             return (
-              <div key={rarity} className="flex items-center justify-between text-sm">
+              <div key={stat.rarity} className="flex items-center justify-between text-sm">
                 <div className="flex items-center space-x-2">
                   <div
-                    className={cn("w-3 h-3 rounded-full", getRarityColor(rarity as BadgeType["rarity"]).split(" ")[0])}
+                    className={cn(
+                      "w-3 h-3 rounded-full",
+                      getRarityColor(stat.rarity as BadgeType["rarity"]).split(" ")[0]
+                    )}
                   />
-                  <span>{getRarityLabel(rarity as BadgeType["rarity"])}</span>
+                  <span>{getRarityLabel(stat.rarity as BadgeType["rarity"])}</span>
                 </div>
                 <span className="font-medium">
-                  {earnedCount}/{count}
+                  {stat.earned}/{stat.total}
                 </span>
               </div>
             )
-          })}
+          }) || <p className="text-sm text-muted-foreground">Đang tải...</p>}
         </CardContent>
       </Card>
 
@@ -216,29 +219,27 @@ export default function BadgesPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="text-center">
             <CardContent className="p-4">
-              <div className="text-2xl font-bold text-educonnect-primary">{earnedBadges.length}</div>
+              <div className="text-2xl font-bold text-educonnect-primary">{summary?.earnedBadges || 0}</div>
               <p className="text-sm text-muted-foreground">Đã đạt</p>
             </CardContent>
           </Card>
           <Card className="text-center">
             <CardContent className="p-4">
-              <div className="text-2xl font-bold text-muted-foreground">{availableBadges.length}</div>
+              <div className="text-2xl font-bold text-muted-foreground">{summary?.notEarnedBadges || 0}</div>
               <p className="text-sm text-muted-foreground">Chưa đạt</p>
             </CardContent>
           </Card>
           <Card className="text-center">
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-yellow-600">
-                {earnedBadges.filter((b) => b.rarity === "legendary").length}
+                {summary?.rarityStats.find((s) => s.rarity === "legendary")?.earned || 0}
               </div>
               <p className="text-sm text-muted-foreground">Huyền thoại</p>
             </CardContent>
           </Card>
           <Card className="text-center">
             <CardContent className="p-4">
-              <div className="text-2xl font-bold text-green-600">
-                {Math.round((earnedBadges.length / badges.length) * 100)}%
-              </div>
+              <div className="text-2xl font-bold text-green-600">{Math.round(summary?.completionRate || 0)}%</div>
               <p className="text-sm text-muted-foreground">Hoàn thành</p>
             </CardContent>
           </Card>
@@ -247,9 +248,9 @@ export default function BadgesPage() {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full max-w-md grid-cols-3 mx-auto">
-            <TabsTrigger value="all">Tất cả ({badges.length})</TabsTrigger>
-            <TabsTrigger value="earned">Đã đạt ({earnedBadges.length})</TabsTrigger>
-            <TabsTrigger value="available">Chưa đạt ({availableBadges.length})</TabsTrigger>
+            <TabsTrigger value="all">Tất cả ({summary?.totalBadges || 0})</TabsTrigger>
+            <TabsTrigger value="earned">Đã đạt ({summary?.earnedBadges || 0})</TabsTrigger>
+            <TabsTrigger value="available">Chưa đạt ({summary?.notEarnedBadges || 0})</TabsTrigger>
           </TabsList>
 
           <TabsContent value={activeTab} className="mt-6">
@@ -269,7 +270,7 @@ export default function BadgesPage() {
 
             {error && <ErrorState description={error} onRetry={handleRetry} />}
 
-            {!loading && !error && getFilteredBadges().length === 0 && (
+            {!loading && !error && badges.length === 0 && (
               <EmptyState
                 title={
                   activeTab === "earned"
@@ -288,16 +289,16 @@ export default function BadgesPage() {
               />
             )}
 
-            {!loading && !error && getFilteredBadges().length > 0 && (
+            {!loading && !error && badges.length > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {getFilteredBadges().map((badge) => (
+                {badges.map((badge) => (
                   <TooltipProvider key={badge.id}>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Card
                           className={cn(
                             "relative transition-all duration-200 hover:shadow-lg cursor-pointer",
-                            badge.earnedAt
+                            badge.isEarned
                               ? "border-2 border-green-200 bg-green-50/50"
                               : "opacity-75 hover:opacity-100",
                             getRarityColor(badge.rarity)
@@ -306,17 +307,17 @@ export default function BadgesPage() {
                           <CardContent className="p-6 text-center space-y-3">
                             {/* Badge Icon */}
                             <div className="relative">
-                              <div className={cn("text-4xl mx-auto", !badge.earnedAt && "grayscale opacity-50")}>
+                              <div className={cn("text-4xl mx-auto", !badge.isEarned && "grayscale opacity-50")}>
                                 {badge.icon}
                               </div>
 
-                              {badge.earnedAt && (
+                              {badge.isEarned && (
                                 <div className="absolute -top-1 -right-1">
                                   <CheckCircle className="h-5 w-5 text-green-500 bg-white rounded-full" />
                                 </div>
                               )}
 
-                              {!badge.earnedAt && (
+                              {!badge.isEarned && (
                                 <div className="absolute -top-1 -right-1">
                                   <Lock className="h-4 w-4 text-muted-foreground" />
                                 </div>
@@ -335,7 +336,7 @@ export default function BadgesPage() {
                             </Badge>
 
                             {/* Progress Bar for unearned badges */}
-                            {!badge.earnedAt && badge.progress !== undefined && (
+                            {!badge.isEarned && badge.progress !== undefined && badge.progress < 100 && (
                               <div className="space-y-1">
                                 <Progress value={badge.progress} className="h-1" />
                                 <p className="text-xs text-muted-foreground">{badge.progress}%</p>
@@ -343,9 +344,9 @@ export default function BadgesPage() {
                             )}
 
                             {/* Earned Date */}
-                            {badge.earnedAt && (
+                            {badge.isEarned && badge.earnedAt && (
                               <p className="text-xs text-green-600 font-medium">
-                                Đạt được {badge.earnedAt.toLocaleDateString("vi-VN")}
+                                Đạt được {new Date(badge.earnedAt).toLocaleDateString("vi-VN")}
                               </p>
                             )}
                           </CardContent>
