@@ -46,24 +46,9 @@ export interface VideoCallSocketServerEvents {
   call_accepted: (data: { callId: string; userId: string; roomId: string; timestamp: Date }) => void
   call_rejected: (data: { callId: string; userId: string; roomId: string; timestamp: Date }) => void
   call_ended: (data: { callId: string; endedBy: string; roomId: string; timestamp: Date }) => void
-  offer_received: (data: {
-    callId: string
-    fromUserId: string
-    offer: RTCSessionDescriptionInit
-    timestamp: Date
-  }) => void
-  answer_received: (data: {
-    callId: string
-    fromUserId: string
-    answer: RTCSessionDescriptionInit
-    timestamp: Date
-  }) => void
-  ice_candidate_received: (data: {
-    callId: string
-    fromUserId: string
-    candidate: RTCIceCandidateInit
-    timestamp: Date
-  }) => void
+  offer: (data: { callId: string; fromUserId: string; offer: RTCSessionDescriptionInit; timestamp: Date }) => void
+  answer: (data: { callId: string; fromUserId: string; answer: RTCSessionDescriptionInit; timestamp: Date }) => void
+  ice_candidate: (data: { callId: string; fromUserId: string; candidate: RTCIceCandidateInit; timestamp: Date }) => void
   audio_toggled: (data: { callId: string; userId: string; enabled: boolean; timestamp: Date }) => void
   video_toggled: (data: { callId: string; userId: string; enabled: boolean; timestamp: Date }) => void
   error: (error: { event: string; message: string }) => void
@@ -76,25 +61,27 @@ export interface VideoCallSocketEvents extends VideoCallSocketClientEvents, Vide
  * Khởi tạo socket connection cho video calls
  */
 export const initVideoCallSocket = (token?: string): Socket | null => {
-  // Nếu socket đã tồn tại và đang connected, return
+  // Use existing connected socket
   if (socket && socket.connected) {
     return socket
   }
 
-  // Nếu socket đã tồn tại nhưng disconnected, disconnect trước
-  if (socket && !socket.connected) {
-    socket.disconnect()
-  }
-
-  // Lấy token nếu không được truyền vào
+  // Force new token check
   const authToken = token || tokenManager.getToken()
 
   if (!authToken) {
-    console.error("❌ Không có token để kết nối video call socket")
+    console.warn("⚠️ Cannot init video socket: No token available")
     return null
   }
 
-  // Tạo socket connection mới
+  // If socket exists but disconnected, try to reconnect with new token
+  if (socket) {
+    socket.auth = { token: authToken }
+    socket.connect()
+    return socket
+  }
+
+  // Create new socket
   socket = io(`${SOCKET_URL}/video-calls`, {
     auth: {
       token: authToken,
@@ -103,7 +90,7 @@ export const initVideoCallSocket = (token?: string): Socket | null => {
     reconnection: true,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
-    reconnectionAttempts: 5,
+    reconnectionAttempts: 10,
   })
 
   socket.on("connect", () => {
@@ -116,10 +103,6 @@ export const initVideoCallSocket = (token?: string): Socket | null => {
 
   socket.on("connect_error", (error) => {
     console.error("❌ Video call socket connection error:", error.message)
-  })
-
-  socket.on("error", (error) => {
-    console.error("❌ Video call socket error:", error)
   })
 
   return socket

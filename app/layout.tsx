@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/contexts/auth-context"
 import { NotificationProvider } from "@/components/notifications/notification-provider"
 import { NotificationContainer } from "@/components/notifications/notification-container"
+import { VideoCallWrapper } from "@/components/video/video-call-wrapper"
 import { Suspense } from "react"
 import "./globals.css"
 
@@ -39,8 +40,10 @@ export default function RootLayout({
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
             <AuthProvider>
               <NotificationProvider>
-                {children}
-                <NotificationContainer />
+                <VideoCallWrapper>
+                  {children}
+                  <NotificationContainer />
+                </VideoCallWrapper>
               </NotificationProvider>
             </AuthProvider>
           </ThemeProvider>

@@ -212,11 +212,12 @@ export interface LeaderboardEntry {
 
 export interface Notification {
   id: string
-  type: "like" | "comment" | "follow" | "group_invite" | "badge" | "mention"
+  type: "message" | "like" | "comment" | "follow" | "group_invite" | "badge" | "mention" | "system" | "achievement"
   title: string
   message: string
   isRead: boolean
   createdAt: Date
+  readAt?: Date
   actionUrl?: string
   actorId?: string
   actor?: User
