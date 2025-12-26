@@ -238,7 +238,7 @@ export function VideoCallModal({
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                 <div className="text-center">
                   <Avatar className="h-20 w-20 mx-auto mb-4 border-4 border-white/10">
-                    <AvatarImage src={participants[0]?.avatar} />
+                    <AvatarImage src={participants[0]?.avatar ?? undefined} />
                     <AvatarFallback>{participants[0]?.displayName?.charAt(0)}</AvatarFallback>
                   </Avatar>
                   <p className="text-lg font-medium text-white/90">Đang kết nối...</p>
@@ -261,7 +261,7 @@ export function VideoCallModal({
                 <div className="absolute inset-0 flex items-center justify-center bg-zinc-800">
                   <div className="text-center">
                     <Avatar className="h-32 w-32 mx-auto mb-4 border-4 border-zinc-700">
-                      <AvatarImage src={participants[0]?.avatar} />
+                      <AvatarImage src={participants[0]?.avatar ?? undefined} />
                       <AvatarFallback className="text-4xl bg-zinc-600">
                         {participants[0]?.displayName?.charAt(0)}
                       </AvatarFallback>

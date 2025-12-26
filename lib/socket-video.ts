@@ -55,7 +55,11 @@ export interface VideoCallSocketServerEvents {
 }
 
 // Combined interface for Socket.IO typing
-export interface VideoCallSocketEvents extends VideoCallSocketClientEvents, VideoCallSocketServerEvents {}
+// Note: answer, offer, and ice_candidate exist in both client and server events with different signatures
+// We use server event signatures (with fromUserId) for socket.on() typing
+// Client events (with targetUserId) are used for socket.emit() typing separately
+export type VideoCallSocketEvents = VideoCallSocketServerEvents &
+  Omit<VideoCallSocketClientEvents, "offer" | "answer" | "ice_candidate">
 
 /**
  * Khởi tạo socket connection cho video calls
