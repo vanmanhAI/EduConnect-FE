@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { LoadingSkeleton } from "@/components/ui/loading-skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
-import { VideoCallModal } from "@/components/features/video/video-call-modal"
+import { useVideoCallContext } from "@/components/video/video-call-provider"
 import { api } from "@/lib/api"
 import { formatDistanceToNow } from "date-fns"
 import { vi } from "date-fns/locale"
@@ -20,16 +20,16 @@ export default function VideoPage() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-  const [showVideoCall, setShowVideoCall] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  const [callType, setCallType] = useState<"audio" | "video">("video")
+  const [creatingCall, setCreatingCall] = useState(false)
+
+  const { initiateCall, hasActiveCall } = useVideoCallContext()
 
   useEffect(() => {
     const loadUsers = async () => {
       try {
         setLoading(true)
         const data = await api.getUsers()
-        setUsers(data.filter((user) => user.isOnline)) // Show only online users
+        setUsers(data.filter((user) => user.isOnline))
       } catch (err) {
         console.error("Failed to load users:", err)
       } finally {
@@ -42,10 +42,16 @@ export default function VideoPage() {
 
   const filteredUsers = users.filter((user) => user.displayName.toLowerCase().includes(searchQuery.toLowerCase()))
 
-  const startCall = (user: User, type: "audio" | "video") => {
-    setSelectedUser(user)
-    setCallType(type)
-    setShowVideoCall(true)
+  const startCall = async (user: User, type: "audio" | "video") => {
+    try {
+      setCreatingCall(true)
+      await initiateCall(user, type)
+    } catch (error) {
+      console.error("Failed to create call:", error)
+      alert("Không thể tạo cuộc gọi. Vui lòng thử lại.")
+    } finally {
+      setCreatingCall(false)
+    }
   }
 
   const recentCalls = [
@@ -53,15 +59,15 @@ export default function VideoPage() {
       id: "1",
       user: users[0],
       type: "video" as const,
-      timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-      duration: 1245, // seconds
+      timestamp: new Date(Date.now() - 1000 * 60 * 30),
+      duration: 1245,
       status: "completed" as const,
     },
     {
       id: "2",
       user: users[1],
       type: "audio" as const,
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
+      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2),
       duration: 0,
       status: "missed" as const,
     },
@@ -137,13 +143,19 @@ export default function VideoPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button size="sm" variant="outline" onClick={() => startCall(user, "audio")}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => startCall(user, "audio")}
+                          disabled={creatingCall || hasActiveCall}
+                        >
                           <Phone className="h-4 w-4" />
                         </Button>
                         <Button
                           size="sm"
                           className="bg-educonnect-primary hover:bg-educonnect-primary/90"
                           onClick={() => startCall(user, "video")}
+                          disabled={creatingCall || hasActiveCall}
                         >
                           <Video className="h-4 w-4" />
                         </Button>
@@ -190,16 +202,6 @@ export default function VideoPage() {
             )}
           </div>
         </div>
-
-        {/* Video Call Modal */}
-        {showVideoCall && selectedUser && (
-          <VideoCallModal
-            isOpen={showVideoCall}
-            onClose={() => setShowVideoCall(false)}
-            participants={[selectedUser]}
-            callType={callType}
-          />
-        )}
       </div>
     </AppShell>
   )

@@ -290,7 +290,7 @@ export interface GroupLeaderboardApiResponse {
 
 export interface Notification {
   id: string
-  type: "like" | "comment" | "follow" | "group_invite" | "badge" | "mention" | "message" | "system" | "achievement"
+  type: "message" | "like" | "comment" | "follow" | "group_invite" | "badge" | "mention" | "system" | "achievement"
   title: string
   message: string
   isRead: boolean
