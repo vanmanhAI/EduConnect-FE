@@ -42,7 +42,7 @@ export function RightSidebar({ children }: RightSidebarProps) {
   }, [])
 
   return (
-    <aside className="fixed top-16 right-0 z-30 hidden h-[calc(100vh-4rem)] w-80 overflow-y-auto border-l bg-background p-6 lg:block">
+    <aside className="fixed top-16 right-0 z-30 hidden h-[calc(100vh-4rem)] w-80 custom-scrollbar border-l bg-background p-6 lg:block">
       <div className="space-y-6">
         {children}
 

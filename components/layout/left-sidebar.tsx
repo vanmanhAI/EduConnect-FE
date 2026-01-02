@@ -29,12 +29,12 @@ export function LeftSidebar({ isOpen, onClose }: LeftSidebarProps) {
   return (
     <>
       {/* Mobile overlay */}
-      {isOpen && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={onClose} />}
+      {isOpen && <div className="fixed top-16 inset-x-0 bottom-0 z-30 bg-black/50 lg:hidden" onClick={onClose} />}
 
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed top-16 left-0 z-50 h-[calc(100vh-4rem)] w-64 transform bg-background border-r transition-transform duration-200 ease-in-out lg:translate-x-0",
+          "fixed top-16 left-0 z-40 h-[calc(100vh-4rem)] w-64 transform bg-background border-r transition-transform duration-200 ease-in-out lg:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
