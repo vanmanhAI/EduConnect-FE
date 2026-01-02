@@ -297,8 +297,6 @@ export default function LeaderboardPage() {
         </div>
 
         {/* Top 3 Podium */}
-        {!loading && !error && leaderboard.length >= 3 && (
-          <div className="grid grid-cols-3 gap-2 sm:gap-4 max-w-2xl mx-auto">
         {!loading && !error && activeType === "individual" && leaderboard.length >= 3 && (
           <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto">
             {/* 2nd Place */}
