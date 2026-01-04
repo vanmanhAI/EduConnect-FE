@@ -808,6 +808,71 @@ export const api = {
     }
   },
 
+  async getPostsByUser(
+    userId: string,
+    page: number = 1,
+    limit: number = 10
+  ): Promise<{ posts: Post[]; hasMore: boolean }> {
+    const token = tokenManager.getToken()
+    const url = new URL(`${API_BASE}/posts/by-user/${userId}`)
+    url.searchParams.set("page", String(page))
+    url.searchParams.set("limit", String(limit))
+
+    const res = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      cache: "no-store",
+    })
+
+    const data = await res.json()
+    console.log("getPostsByUser API response:", data)
+
+    if (!res.ok) {
+      throw new Error((data && data.message) || "Không thể tải danh sách bài viết")
+    }
+
+    // Check if data structure is valid
+    if (!data.data || !data.data.items || !Array.isArray(data.data.items)) {
+      console.warn("Invalid posts data structure:", data)
+      return {
+        posts: [],
+        hasMore: false,
+      }
+    }
+
+    // Transform backend data to frontend Post type
+    const posts: Post[] = data.data.items.map((post: any) => ({
+      id: post.id,
+      title: post.title,
+      content: post.content,
+      slug: post.slug,
+      excerpt: post.excerpt,
+      createdAt: new Date(post.createdAt),
+      updatedAt: new Date(post.updatedAt),
+      authorId: post.author?.id,
+      author: {
+        id: post.author?.id,
+        username: post.author?.username,
+        displayName: post.author?.displayName,
+        avatar: post.author?.avatar,
+      },
+      isLiked: post.isLiked || false,
+      likeCount: post.likeCount || 0,
+      commentCount: post.commentCount || 0,
+      tags: transformTags(post.tags) || [],
+      reactions: post.reactions || [],
+      isCommented: post.isCommented || false,
+    }))
+
+    return {
+      posts,
+      hasMore: data.data.hasMore || false,
+    }
+  },
+
   // Groups
   async getGroups(page: number = 1, limit: number = 10): Promise<{ groups: Group[]; hasMore: boolean; total: number }> {
     const token = tokenManager.getToken()
@@ -1310,6 +1375,35 @@ export const api = {
     } catch (error) {
       console.error("Error deleting group:", error)
       throw error
+    }
+  },
+
+  async shareGroup(groupId: string): Promise<string | null> {
+    try {
+      const token = tokenManager.getToken()
+      const res = await fetch(`${API_BASE}/groups/${groupId}/share`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || "Failed to get share link")
+      }
+
+      const response = await res.json()
+
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to get share link")
+      }
+
+      return response.data.url
+    } catch (error) {
+      console.error("Error sharing group:", error)
+      return null
     }
   },
 

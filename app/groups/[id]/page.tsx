@@ -4,7 +4,19 @@ import type React from "react"
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { Users, Settings, Share2, MoreHorizontal, Send, Smile, Paperclip, Trash2, Loader2 } from "lucide-react"
+import {
+  Users,
+  Settings,
+  Share2,
+  MoreHorizontal,
+  Send,
+  Smile,
+  Paperclip,
+  Trash2,
+  Loader2,
+  Copy,
+  Check,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -22,6 +34,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { AppShell } from "@/components/layout/app-shell"
 import { PostCard } from "@/components/features/posts/post-card"
 import { UserCard } from "@/components/features/users/user-card"
@@ -57,6 +70,9 @@ export default function GroupDetailPage() {
   const [postsPage, setPostsPage] = useState(1)
   const [postsHasMore, setPostsHasMore] = useState(false)
   const [postsLoadingMore, setPostsLoadingMore] = useState(false)
+  const [shareUrl, setShareUrl] = useState("")
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false)
+  const [isCopied, setIsCopied] = useState(false)
 
   const observerRef = useRef<IntersectionObserver | null>(null)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
@@ -363,6 +379,39 @@ export default function GroupDetailPage() {
     }
   }
 
+  const handleShareGroup = async () => {
+    if (!group) return
+    try {
+      const url = await api.shareGroup(group.id)
+      if (url) {
+        setShareUrl(url)
+        setIsShareDialogOpen(true)
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Lỗi",
+          description: "Không thể lấy link chia sẻ",
+        })
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: "Không thể lấy link chia sẻ",
+      })
+    }
+  }
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(shareUrl)
+    setIsCopied(true)
+    toast({
+      title: "Đã sao chép",
+      description: "Link chia sẻ đã được sao chép vào bộ nhớ tạm",
+    })
+    setTimeout(() => setIsCopied(false), 2000)
+  }
+
   const handleRetry = () => {
     setError(null)
     const loadGroupData = async () => {
@@ -490,7 +539,7 @@ export default function GroupDetailPage() {
                 {getJoinButtonContent()}
               </Button>
 
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="icon" onClick={handleShareGroup}>
                 <Share2 className="h-4 w-4" />
               </Button>
 
@@ -752,6 +801,25 @@ export default function GroupDetailPage() {
           </AlertDialogContent>
         </AlertDialog>
       )}
+
+      {/* Share Group Dialog */}
+      <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Chia sẻ nhóm</DialogTitle>
+            <DialogDescription>Sao chép đường dẫn bên dưới để chia sẻ nhóm này với mọi người.</DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center space-x-2">
+            <div className="grid flex-1 gap-2">
+              <Input id="link" defaultValue={shareUrl} readOnly />
+            </div>
+            <Button size="sm" className="px-3" onClick={handleCopyLink}>
+              <span className="sr-only">Copy</span>
+              {isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   )
 }
