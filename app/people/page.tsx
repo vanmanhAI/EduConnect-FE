@@ -25,25 +25,31 @@ export default function PeoplePage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [activeTab, setActiveTab] = useState("all")
   const [sortBy, setSortBy] = useState("recent")
+  const [hasMore, setHasMore] = useState(false)
+  const [page, setPage] = useState(1)
+  const [loadingMore, setLoadingMore] = useState(false)
 
   const popularSkills = ["javascript", "react", "design", "python", "marketing", "startup"]
 
   useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const data = await api.getUsers()
-        setUsers(data)
-        setFilteredUsers(data)
-      } catch (err) {
-        setError("Không thể tải danh sách người dùng. Vui lòng thử lại.")
-      } finally {
-        setLoading(false)
+    // Only load initial users if no search query
+    if (!searchQuery.trim()) {
+      const loadUsers = async () => {
+        try {
+          setLoading(true)
+          setError(null)
+          const data = await api.getUsers()
+          setUsers(data)
+          // For initial load without pagination support in getUsers, we assume no more
+          // However, better to rely on search for pagination
+        } catch (err) {
+          setError("Không thể tải danh sách người dùng. Vui lòng thử lại.")
+        } finally {
+          setLoading(false)
+        }
       }
+      loadUsers()
     }
-
-    loadUsers()
   }, [])
 
   // Load following users when switching to "following" tab
@@ -71,24 +77,33 @@ export default function PeoplePage() {
     }
   }, [activeTab])
 
-  const debouncedSearch = debounce((query: string) => {
-    if (!query.trim()) {
-      setFilteredUsers(users)
-      return
-    }
+  const debouncedSearch = debounce(async (query: string) => {
+    try {
+      setLoading(true)
+      setPage(1)
 
-    const filtered = users.filter(
-      (user) =>
-        user.displayName.toLowerCase().includes(query.toLowerCase()) ||
-        user.username.toLowerCase().includes(query.toLowerCase()) ||
-        (user.bio && user.bio.toLowerCase().includes(query.toLowerCase()))
-    )
-    setFilteredUsers(filtered)
+      if (!query.trim()) {
+        const data = await api.getUsers()
+        setUsers(data)
+        setFilteredUsers(data)
+        setHasMore(false)
+        return
+      }
+
+      const res = await api.searchUsers(query, 1, 10)
+      setFilteredUsers(res.users)
+      setHasMore(res.hasMore)
+    } catch (err) {
+      console.error("Search error:", err)
+      setError("Tìm kiếm thất bại. Vui lòng thử lại.")
+    } finally {
+      setLoading(false)
+    }
   }, 300)
 
   useEffect(() => {
     debouncedSearch(searchQuery)
-  }, [searchQuery, users, debouncedSearch])
+  }, [searchQuery])
 
   const handleRetry = () => {
     setError(null)
@@ -114,8 +129,50 @@ export default function PeoplePage() {
         setLoading(false)
       }
     }
-    loadUsers()
+    // If searching, retry search
+    if (searchQuery.trim()) {
+      debouncedSearch(searchQuery)
+    } else {
+      loadUsers()
+    }
   }
+
+  const handleLoadMore = async () => {
+    if (loadingMore || !hasMore) return
+
+    try {
+      setLoadingMore(true)
+      const nextPage = page + 1
+      const res = await api.searchUsers(searchQuery, nextPage, 10)
+
+      setFilteredUsers((prev) => [...prev, ...res.users])
+      setHasMore(res.hasMore)
+      setPage(nextPage)
+    } catch (err) {
+      console.error("Load more error:", err)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
+  // Infinite scroll observer
+  useEffect(() => {
+    if (!hasMore || loading || loadingMore || !searchQuery.trim()) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          handleLoadMore()
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    const trigger = document.getElementById("search-load-more")
+    if (trigger) observer.observe(trigger)
+
+    return () => observer.disconnect()
+  }, [hasMore, loading, loadingMore, searchQuery, page])
 
   const getUsersByTab = () => {
     let result = [...filteredUsers]
@@ -249,13 +306,13 @@ export default function PeoplePage() {
           </TabsList>
 
           <TabsContent value={activeTab} className="mt-6">
-            {loading && (
+            {loading ? (
               <div className="grid md:grid-cols-2 gap-6">
                 {[...Array(6)].map((_, i) => (
                   <UserSkeleton key={i} />
                 ))}
               </div>
-            )}
+            ) : null}
 
             {error && <ErrorState description={error} onRetry={handleRetry} />}
 
@@ -287,11 +344,24 @@ export default function PeoplePage() {
             )}
 
             {!loading && !error && getUsersByTab().length > 0 && (
-              <div className="grid md:grid-cols-2 gap-6">
-                {getUsersByTab().map((user) => (
-                  <UserCard key={user.id} user={user} />
-                ))}
-              </div>
+              <>
+                <div className="grid md:grid-cols-2 gap-6">
+                  {getUsersByTab().map((user) => (
+                    <UserCard key={user.id} user={user} />
+                  ))}
+                </div>
+
+                {/* Infinite scroll trigger for search results */}
+                {searchQuery.trim() && hasMore && (
+                  <div id="search-load-more" className="py-8 flex justify-center">
+                    {loadingMore ? (
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                    ) : (
+                      <div className="h-4" />
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </TabsContent>
         </Tabs>

@@ -48,6 +48,9 @@ export default function GroupsPage() {
   const [trendingLoadingMore, setTrendingLoadingMore] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [searching, setSearching] = useState(false)
+  const [searchPage, setSearchPage] = useState<number>(1)
+  const [searchHasMore, setSearchHasMore] = useState<boolean>(false)
+  const [searchLoadingMore, setSearchLoadingMore] = useState(false)
   const [searchInput, setSearchInput] = useState("")
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [history, setHistory] = useState<string[]>([])
@@ -179,9 +182,13 @@ export default function GroupsPage() {
           return
         }
 
-        const res = await api.searchGroupsByKeyword(query)
+        // Reset search page to 1 for new search
+        setSearchPage(1)
+
+        const res = await api.searchGroupsByKeyword(query, 1, pageSize, 0.05)
         if (seq !== searchingSeqRef.current) return
         setFilteredGroups(res.groups)
+        setSearchHasMore(res.hasMore)
 
         if (query.trim()) {
           const normalized = query.trim()
@@ -320,6 +327,23 @@ export default function GroupsPage() {
     }
   }, [trendingLoadingMore, trendingHasMore, trendingPage])
 
+  const handleLoadMoreSearch = useCallback(async () => {
+    if (searchLoadingMore || !searchHasMore || !searchQuery.trim()) return
+
+    try {
+      setSearchLoadingMore(true)
+      const nextPage = searchPage + 1
+      const result = await api.searchGroupsByKeyword(searchQuery, nextPage, pageSize, 0.05)
+      setFilteredGroups((prev) => [...prev, ...result.groups])
+      setSearchHasMore(result.hasMore)
+      setSearchPage(nextPage)
+    } catch (err) {
+      setError("Không thể tải thêm kết quả tìm kiếm. Vui lòng thử lại.")
+    } finally {
+      setSearchLoadingMore(false)
+    }
+  }, [searchLoadingMore, searchHasMore, searchQuery, searchPage, pageSize])
+
   // Infinite scroll observer
   useEffect(() => {
     if (loading) return
@@ -333,6 +357,8 @@ export default function GroupsPage() {
             handleLoadMoreJoined()
           } else if (activeTab === "trending" && trendingHasMore && !trendingLoadingMore) {
             handleLoadMoreTrending()
+          } else if (searchQuery.trim() && searchHasMore && !searchLoadingMore) {
+            handleLoadMoreSearch()
           }
         }
       },
@@ -354,9 +380,12 @@ export default function GroupsPage() {
     joinedLoadingMore,
     trendingHasMore,
     trendingLoadingMore,
+    searchHasMore,
+    searchLoadingMore,
     handleLoadMore,
     handleLoadMoreJoined,
     handleLoadMoreTrending,
+    handleLoadMoreSearch,
   ])
 
   const handleRetry = () => {
@@ -674,16 +703,18 @@ export default function GroupsPage() {
               </div>
             )}
 
-            {/* Infinite Scroll Trigger - show for "all", "joined", and "trending" tabs when not searching */}
-            {!loading && !error && !searchQuery.trim() && (
+            {/* Infinite Scroll Trigger - show for "all", "joined", and "trending" tabs or when searching */}
+            {!loading && !error && (
               <>
-                {(activeTab === "all" && (hasMore || loadingMore)) ||
+                {(activeTab === "all" && (hasMore || loadingMore) && !searchQuery.trim()) ||
                 (activeTab === "joined" && (joinedHasMore || joinedLoadingMore)) ||
-                (activeTab === "trending" && (trendingHasMore || trendingLoadingMore)) ? (
+                (activeTab === "trending" && (trendingHasMore || trendingLoadingMore)) ||
+                (searchQuery.trim() && (searchHasMore || searchLoadingMore)) ? (
                   <div ref={loadMoreRef} className="flex justify-center py-8">
-                    {(activeTab === "all" && loadingMore) ||
+                    {(activeTab === "all" && loadingMore && !searchQuery.trim()) ||
                     (activeTab === "joined" && joinedLoadingMore) ||
-                    (activeTab === "trending" && trendingLoadingMore) ? (
+                    (activeTab === "trending" && trendingLoadingMore) ||
+                    (searchQuery.trim() && searchLoadingMore) ? (
                       <div className="flex items-center space-x-2 text-muted-foreground">
                         <Loader2 className="h-5 w-5 animate-spin" />
                         <span>Đang tải thêm...</span>
