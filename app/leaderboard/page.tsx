@@ -366,12 +366,16 @@ export default function LeaderboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center justify-between text-base sm:text-lg">
               <span>Bảng xếp hạng {getPeriodLabel(activePeriod)}</span>
-              <Badge variant="secondary" className="hidden sm:inline-flex">
-                {leaderboard.length} thành viên
-              </Badge>
-              <Badge variant="secondary" className="sm:hidden text-xs">
-                {leaderboard.length}
-              </Badge>
+              {activeType === "individual" && (
+                <>
+                  <Badge variant="secondary" className="hidden sm:inline-flex">
+                    {leaderboard.length} thành viên
+                  </Badge>
+                  <Badge variant="secondary" className="sm:hidden text-xs">
+                    {leaderboard.length}
+                  </Badge>
+                </>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0 sm:p-6">
@@ -403,7 +407,7 @@ export default function LeaderboardPage() {
               />
             )}
 
-            {!loading && !error && leaderboard.length > 0 && (
+            {!loading && !error && activeType === "individual" && leaderboard.length > 0 && (
               <div className="space-y-1 sm:space-y-2">
                 {leaderboard.map((entry, index) => (
                   <div
@@ -482,6 +486,92 @@ export default function LeaderboardPage() {
                   {!loadingMore && !hasMore && leaderboard.length > 0 && (
                     <span className="text-sm text-muted-foreground">Đã hiển thị tất cả kết quả</span>
                   )}
+                </div>
+              </div>
+            )}
+
+            {!loading && !error && activeType === "groups" && groupLeaderboard.length === 0 && (
+              <EmptyState
+                title="Chưa có dữ liệu xếp hạng"
+                description="Bảng xếp hạng sẽ được cập nhật khi có hoạt động từ cộng đồng"
+              />
+            )}
+
+            {!loading && !error && activeType === "groups" && groupLeaderboard.length > 0 && (
+              <div className="space-y-1 sm:space-y-2">
+                {groupLeaderboard.map((entry, index) => (
+                  <div
+                    key={`${entry.group.id}-${entry.rank}`}
+                    className={cn(
+                      "flex items-center space-x-2 sm:space-x-4 p-3 sm:p-4 rounded-lg transition-colors hover:bg-muted/50 border-b last:border-0 sm:border-0",
+                      entry.rank <= 3 && "bg-gradient-to-r from-muted/30 to-transparent"
+                    )}
+                  >
+                    {/* Rank */}
+                    <div className="flex items-center justify-center w-8 sm:w-12 flex-shrink-0">
+                      <div
+                        className={cn(
+                          "px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold",
+                          getRankBadgeColor(entry.rank)
+                        )}
+                      >
+                        {entry.rank <= 3 ? getRankIcon(entry.rank) : `#${entry.rank}`}
+                      </div>
+                    </div>
+
+                    {/* Group Info */}
+                    <Avatar className="h-8 w-8 sm:h-10 sm:w-10 border border-border">
+                      <AvatarImage src={entry.group.avatar || "/placeholder.svg"} />
+                      <AvatarFallback>{entry.group.name?.charAt(0) || "?"}</AvatarFallback>
+                    </Avatar>
+
+                    <div className="flex-1 min-w-0">
+                      <Link
+                        href={`/groups/${entry.group.id}`}
+                        className="font-medium text-sm sm:text-base hover:text-educonnect-primary transition-colors truncate block"
+                      >
+                        {entry.group.name || "Unknown Group"}
+                      </Link>
+                    </div>
+
+                    {/* Points and Change */}
+                    <div className="text-right flex-shrink-0">
+                      <div className="font-semibold text-educonnect-primary text-sm sm:text-base">
+                        {formatNumber(entry.points)}
+                      </div>
+                      <div className="flex items-center justify-end space-x-1 text-[10px] sm:text-xs">
+                        {getChangeIcon(entry.change)}
+                        <span
+                          className={cn(
+                            entry.change > 0
+                              ? "text-green-600"
+                              : entry.change < 0
+                                ? "text-red-600"
+                                : "text-muted-foreground"
+                          )}
+                        >
+                          {entry.change > 0 ? `+${entry.change}` : entry.change}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Infinite scroll trigger for groups */}
+                <div className="py-4 flex justify-center">
+                  {loadingMore ? (
+                    <div className="flex items-center space-x-2 text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span>Đang tải thêm...</span>
+                    </div>
+                  ) : (
+                    !hasMore &&
+                    groupLeaderboard.length > 0 && (
+                      <span className="text-sm text-muted-foreground">Đã hiển thị tất cả kết quả</span>
+                    )
+                  )}
+                  {/* Reuse the ref for observer */}
+                  {!loadingMore && hasMore && <div ref={loadMoreRef} className="h-4 w-full" />}
                 </div>
               </div>
             )}
