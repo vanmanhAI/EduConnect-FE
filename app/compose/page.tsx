@@ -47,11 +47,11 @@ export default function ComposePage() {
   }, [content])
 
   const handleSave = async (publish = false) => {
-    if (!title.trim() || !content.trim()) {
+    if (title.trim().length < 5 || content.trim().length < 10) {
       toast({
         variant: "destructive",
         title: "Lỗi",
-        description: "Vui lòng nhập tiêu đề và nội dung bài viết",
+        description: "Tiêu đề phải có ít nhất 5 ký tự và nội dung ít nhất 10 ký tự",
       })
       return
     }
@@ -110,7 +110,7 @@ export default function ComposePage() {
             </Button>
             <Button
               onClick={handlePublish}
-              disabled={saving || !title.trim() || !content.trim()}
+              disabled={saving || title.trim().length < 5 || content.trim().length < 10}
               className="bg-educonnect-primary hover:bg-educonnect-primary/90"
             >
               <Send className="mr-2 h-4 w-4" />
@@ -125,7 +125,7 @@ export default function ComposePage() {
           <div className="grid md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
               <Input
-                placeholder="Tiêu đề bài viết..."
+                placeholder="Tiêu đề bài viết (ít nhất 5 ký tự)"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="text-lg font-medium"
@@ -174,16 +174,16 @@ export default function ComposePage() {
 
             <TabsContent value="write" className="space-y-4">
               <Textarea
-                placeholder="Chia sẻ kiến thức của bạn... 
+                placeholder={`Chia sẻ kiến thức của bạn (ít nhất 10 ký tự)
 
 Bạn có thể sử dụng Markdown để định dạng:
 - **in đậm** hoặc *in nghiêng*
-- `code inline` hoặc \`\`\`code block\`\`\`
+- \`code inline\` hoặc \`\`\`code block\`\`\`
 - # Tiêu đề
 - [liên kết](url)
 - #hashtag để tạo thẻ
 
-Hãy viết nội dung chất lượng để giúp đỡ cộng đồng!"
+Hãy viết nội dung chất lượng để giúp đỡ cộng đồng!`}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 className="min-h-[400px] resize-none"
