@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import ReactMarkdown from "react-markdown"
 import { Save, Send, Hash, ImageIcon, Code } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,6 +15,10 @@ import { api } from "@/lib/api"
 import { extractTags } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import type { Group } from "@/types"
+
+const DRAFT_TITLE = "educonnect_draft_title"
+const DRAFT_CONTENT = "educonnect_draft_content"
+const DRAFT_GROUP = "educonnect_draft_group"
 
 export default function ComposePage() {
   const { toast } = useToast()
@@ -28,6 +33,26 @@ export default function ComposePage() {
   const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Load draft from localStorage
+  useEffect(() => {
+    const savedTitle = localStorage.getItem(DRAFT_TITLE)
+    const savedContent = localStorage.getItem(DRAFT_CONTENT)
+    const savedGroup = localStorage.getItem(DRAFT_GROUP)
+
+    if (savedTitle) setTitle(savedTitle)
+    if (savedContent) setContent(savedContent)
+    if (savedGroup) setSelectedGroupId(savedGroup)
+  }, [])
+
+  // Auto-save draft to localStorage
+  useEffect(() => {
+    localStorage.setItem(DRAFT_TITLE, title)
+    localStorage.setItem(DRAFT_CONTENT, content)
+    localStorage.setItem(DRAFT_GROUP, selectedGroupId)
+  }, [title, content, selectedGroupId])
 
   useEffect(() => {
     const loadGroups = async () => {
@@ -71,6 +96,11 @@ export default function ComposePage() {
 
       await api.createPost(postData)
 
+      // Clear draft
+      localStorage.removeItem(DRAFT_TITLE)
+      localStorage.removeItem(DRAFT_CONTENT)
+      localStorage.removeItem(DRAFT_GROUP)
+
       toast({
         title: "Thành công",
         description: publish ? "Bài viết đã được đăng" : "Bài viết đã được lưu",
@@ -92,6 +122,26 @@ export default function ComposePage() {
   }
 
   const handlePublish = () => handleSave(true)
+
+  const handleInsertMarkdown = (startTag: string, endTag: string) => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const selectedText = content.substring(start, end)
+    const replacement = `${startTag}${selectedText}${endTag}`
+
+    const newContent = content.substring(0, start) + replacement + content.substring(end)
+    setContent(newContent)
+
+    // Restore cursor position / selection
+    // Defer the cursor update to allow React render cycle to complete
+    setTimeout(() => {
+      textarea.focus()
+      textarea.setSelectionRange(start + startTag.length, end + startTag.length)
+    }, 0)
+  }
 
   return (
     <AppShell showRightSidebar={false}>
@@ -157,7 +207,7 @@ export default function ComposePage() {
               </TabsList>
 
               <div className="flex items-center space-x-2">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => handleInsertMarkdown("#", "")}>
                   <Hash className="mr-2 h-4 w-4" />
                   Thẻ
                 </Button>
@@ -165,7 +215,7 @@ export default function ComposePage() {
                   <ImageIcon className="mr-2 h-4 w-4" />
                   Hình ảnh
                 </Button>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => handleInsertMarkdown("```\n", "\n```")}>
                   <Code className="mr-2 h-4 w-4" />
                   Code
                 </Button>
@@ -174,6 +224,7 @@ export default function ComposePage() {
 
             <TabsContent value="write" className="space-y-4">
               <Textarea
+                ref={textareaRef}
                 placeholder={`Chia sẻ kiến thức của bạn (ít nhất 10 ký tự)
 
 Bạn có thể sử dụng Markdown để định dạng:
@@ -186,7 +237,7 @@ Bạn có thể sử dụng Markdown để định dạng:
 Hãy viết nội dung chất lượng để giúp đỡ cộng đồng!`}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                className="min-h-[400px] resize-none"
+                className="min-h-[400px] resize-none font-mono"
               />
 
               {/* Tags Preview */}
@@ -207,9 +258,9 @@ Hãy viết nội dung chất lượng để giúp đỡ cộng đồng!`}
             <TabsContent value="preview" className="space-y-4">
               <div className="border rounded-lg p-6 min-h-[400px]">
                 <h2 className="text-xl font-semibold mb-4">{title || "Tiêu đề bài viết"}</h2>
-                <div className="prose prose-sm max-w-none">
+                <div className="prose prose-sm max-w-none break-words">
                   {content ? (
-                    <pre className="whitespace-pre-wrap font-sans">{content}</pre>
+                    <ReactMarkdown>{content}</ReactMarkdown>
                   ) : (
                     <p className="text-muted-foreground italic">Nội dung bài viết sẽ hiển thị ở đây...</p>
                   )}

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import ReactMarkdown from "react-markdown"
 import { Heart, MessageCircle, Share2, MoreHorizontal, Bookmark, Pencil, Trash2 } from "lucide-react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -310,11 +311,46 @@ export function PostCard({
             </h3>
           </Link>
 
-          <div className="prose prose-sm max-w-none text-muted-foreground">
-            {compact ? truncateText(post.content, 200) : post.content}
+          <div className={`prose prose-base max-w-none text-foreground break-words ${compact ? "line-clamp-4" : ""}`}>
+            <ReactMarkdown
+              components={{
+                code(props: any) {
+                  const { children, className, node, ...rest } = props
+                  const match = /language-(\w+)/.exec(className || "")
+                  return match ? (
+                    <code
+                      className={`${className} bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded px-1 py-0.5`}
+                      {...rest}
+                    >
+                      {children}
+                    </code>
+                  ) : (
+                    <code
+                      className={`${className} bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded px-1 py-0.5`}
+                      {...rest}
+                    >
+                      {children}
+                    </code>
+                  )
+                },
+                pre(props: any) {
+                  const { children, ...rest } = props
+                  return (
+                    <pre
+                      className="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md p-4 overflow-x-auto"
+                      {...rest}
+                    >
+                      {children}
+                    </pre>
+                  )
+                },
+              }}
+            >
+              {post.content.replace(/#[\w]+/g, "")}
+            </ReactMarkdown>
           </div>
 
-          {compact && post.content.length > 200 && (
+          {compact && (
             <Link
               href={`/posts/${post.id}`}
               className="text-educonnect-primary hover:underline text-sm mt-2 inline-block"
