@@ -370,16 +370,38 @@ export default function ChatPage() {
                     content: message.replyTo.content,
                     senderId: message.replyTo.senderId,
                     createdAt: message.replyTo.createdAt,
+                    timestamp: new Date(message.replyTo.createdAt), // Add missing timestamp
                     type: message.replyTo.type,
-                    messageType: message.replyTo.type, // Map potential backend diff
+                    isRead: true, // Mock value for reply reference
+                    threadId: message.replyTo.conversationId, // Add missing threadId
                     conversationId: message.replyTo.conversationId,
                     sender: message.replyTo.sender
                       ? {
                           id: message.replyTo.sender.id,
+                          username: message.replyTo.sender.username || "unknown", // Add required username
+                          email: message.replyTo.sender.email || "", // Add required email
                           displayName: message.replyTo.sender.displayName || message.replyTo.sender.username,
                           avatar: message.replyTo.sender.avatar,
+                          points: 0, // Mock required
+                          level: 1, // Mock required
+                          badges: [], // Mock required
+                          followers: 0, // Mock required
+                          following: 0, // Mock required
+                          joinedAt: new Date(), // Mock required
                         }
-                      : undefined,
+                      : {
+                          // Fallback for sender if undefined (User type requires non-undefined)
+                          id: message.replyTo.senderId,
+                          username: "unknown",
+                          email: "",
+                          displayName: "Unknown User",
+                          level: 1,
+                          points: 0,
+                          badges: [],
+                          followers: 0,
+                          following: 0,
+                          joinedAt: new Date(),
+                        },
                   }
                 : undefined,
             }
