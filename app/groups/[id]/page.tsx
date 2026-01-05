@@ -42,6 +42,7 @@ import { UserCard } from "@/components/features/users/user-card"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { EditGroupDialog } from "@/components/features/groups/edit-group-dialog"
+import { GroupFilesTab } from "@/components/features/groups/group-files-tab"
 import { useToast } from "@/hooks/use-toast"
 import { api } from "@/lib/api"
 import { tokenManager } from "@/lib/auth"
@@ -249,7 +250,12 @@ export default function GroupDetailPage() {
     }
   }
 
-  const handleSaveGroupSettings = async (data: { name: string; description: string; tags: string[] }) => {
+  const handleSaveGroupSettings = async (data: {
+    name: string
+    description: string
+    tags: string[]
+    avatar?: string
+  }) => {
     if (!group) return
 
     try {
@@ -639,10 +645,7 @@ export default function GroupDetailPage() {
             </TabsContent>
 
             <TabsContent value="files" className="space-y-6 mt-6">
-              <EmptyState
-                title="Chưa có tệp tin nào"
-                description="Các tệp tin được chia sẻ trong nhóm sẽ xuất hiện ở đây"
-              />
+              <GroupFilesTab groupId={group.id} />
             </TabsContent>
           </Tabs>
         )}

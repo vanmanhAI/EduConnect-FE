@@ -15,12 +15,17 @@ import { Separator } from "@/components/ui/separator"
 import { AppShell } from "@/components/layout/app-shell"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
+/* New import */
+import { useFileUpload } from "@/hooks/use-file-upload"
 import { api } from "@/lib/api"
 
 export default function SettingsPage() {
   const { toast } = useToast()
   const { user, refreshUser, updateUser } = useAuth()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  // Use custom upload hook
+  const { upload, isUploading, progress } = useFileUpload()
 
   const [profile, setProfile] = useState({
     displayName: "",
@@ -35,6 +40,8 @@ export default function SettingsPage() {
   })
 
   const [originalProfile, setOriginalProfile] = useState(profile)
+  const [loading, setLoading] = useState(false)
+  const [privacyLoading, setPrivacyLoading] = useState(false)
 
   const [notifications, setNotifications] = useState({
     emailNotifications: true,
@@ -47,24 +54,9 @@ export default function SettingsPage() {
     profileVisibility: "public",
     isOnline: true,
   })
-
   const [originalPrivacy, setOriginalPrivacy] = useState(privacy)
-  const [privacyLoading, setPrivacyLoading] = useState(false)
-  const [loading, setLoading] = useState(false)
 
-  // Kiểm tra có thay đổi nào không
-  const hasChanges = () => {
-    return (
-      profile.displayName !== originalProfile.displayName ||
-      profile.bio !== originalProfile.bio ||
-      profile.location !== originalProfile.location ||
-      profile.website !== originalProfile.website ||
-      profile.linkedin !== originalProfile.linkedin ||
-      profile.github !== originalProfile.github
-    )
-  }
-
-  // Load user data khi component mount
+  // Load user data
   useEffect(() => {
     if (user) {
       const userData = {
@@ -83,37 +75,33 @@ export default function SettingsPage() {
     }
   }, [user])
 
-  // Load privacy settings khi user đã load
+  // Load privacy settings
   useEffect(() => {
     const loadPrivacySettings = async () => {
       if (!user) return
-
       try {
         setPrivacyLoading(true)
         const privacyData = await api.getUserPrivacy()
-        console.log("Privacy settings loaded:", privacyData)
-
         const privacySettings = {
           profileVisibility: privacyData.profileVisibility || "public",
           isOnline: privacyData.isOnline !== undefined ? privacyData.isOnline : true,
         }
-
         setPrivacy(privacySettings)
         setOriginalPrivacy(privacySettings)
       } catch (error) {
         console.error("Failed to load privacy settings:", error)
-        toast({
-          title: "Không thể tải cài đặt riêng tư",
-          description: "Sử dụng cài đặt mặc định",
-          variant: "destructive",
-        })
       } finally {
         setPrivacyLoading(false)
       }
     }
-
     loadPrivacySettings()
-  }, [user, toast])
+  }, [user])
+
+  const hasChanges = () => {
+    return JSON.stringify(profile) !== JSON.stringify(originalProfile)
+  }
+
+  // ... existing code ...
 
   const handlePickAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -128,12 +116,34 @@ export default function SettingsPage() {
       toast({ title: "Tệp quá lớn", description: "Giới hạn 5MB", variant: "destructive" })
       return
     }
+
+    // Upload file immediately
     try {
+      // Create local preview first
       const objectUrl = URL.createObjectURL(file)
       setProfile((p) => ({ ...p, avatar: objectUrl }))
-      toast({ title: "Đã cập nhật ảnh đại diện", description: file.name })
+
+      const result = await upload(file)
+
+      if (result) {
+        // Update profile state with real URL
+        setProfile((p) => ({ ...p, avatar: result.url }))
+
+        // Also auto-save the avatar change to backend immediately
+        const updatedUserRaw = await api.updateCurrentUser({ avatar: result.url })
+
+        // Refresh user context with the data from backend
+        // We forcibly use the secure_url we just got to prevent any stale data from backend
+        if (updatedUserRaw) {
+          updateUser({ ...updatedUserRaw, avatar: result.url })
+        }
+
+        toast({ title: "Đã cập nhật ảnh đại diện", description: "Ảnh đại diện mới đã được lưu" })
+      }
     } catch (err) {
-      toast({ title: "Tải lên thất bại", description: "Vui lòng thử lại.", variant: "destructive" })
+      // Error is handled by hook's toast, but we might want to revert preview
+      console.error("Avatar upload error", err)
+      // Revert logic could go here if needed
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = ""
     }
@@ -251,10 +261,21 @@ export default function SettingsPage() {
               <CardContent className="space-y-4 px-0">
                 {/* Avatar */}
                 <div className="flex items-center gap-4">
-                  <Avatar className="h-20 w-20">
-                    <AvatarImage src={profile.avatar || "/placeholder.svg"} />
-                    <AvatarFallback className="text-xl">{profile.displayName.charAt(0)}</AvatarFallback>
-                  </Avatar>
+                  <div className="relative">
+                    <Avatar className="h-20 w-20">
+                      <AvatarImage
+                        src={profile.avatar || "/placeholder.svg"}
+                        className={isUploading ? "opacity-50" : ""}
+                      />
+                      <AvatarFallback className="text-xl">{profile.displayName.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    {isUploading && (
+                      <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/20">
+                        <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                        <span className="sr-only">Đang tải... {progress}%</span>
+                      </div>
+                    )}
+                  </div>
                   <div className="space-y-2">
                     <input
                       ref={fileInputRef}

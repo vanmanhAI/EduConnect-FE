@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import ReactMarkdown from "react-markdown"
-import { Save, Send, Hash, ImageIcon, Code } from "lucide-react"
+import { Save, Send, Hash, ImageIcon, Code, Loader2, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -14,6 +14,7 @@ import { AppShell } from "@/components/layout/app-shell"
 import { api } from "@/lib/api"
 import { extractTags } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
+import { useFileUpload } from "@/hooks/use-file-upload"
 import type { Group } from "@/types"
 
 const DRAFT_TITLE = "educonnect_draft_title"
@@ -35,6 +36,10 @@ export default function ComposePage() {
   const [saving, setSaving] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Custom hook for file upload
+  const { upload, isUploading, progress } = useFileUpload()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Load draft from localStorage
   useEffect(() => {
@@ -143,6 +148,70 @@ export default function ComposePage() {
     }, 0)
   }
 
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "Tệp quá lớn", description: "Giới hạn 5MB", variant: "destructive" })
+      return
+    }
+
+    try {
+      const result = await upload(file)
+      if (result) {
+        const textarea = textareaRef.current
+        if (!textarea) return
+
+        const start = textarea.selectionStart
+        const end = textarea.selectionEnd
+        const imageMarkdown = `![${result.filename || result.original_filename || "Image"}](${result.url})`
+
+        const newContent = content.substring(0, start) + imageMarkdown + content.substring(end)
+        setContent(newContent)
+
+        toast({ title: "Đã thêm ảnh", description: "Ảnh đã được tải lên bài viết" })
+      }
+    } catch (error) {
+      console.error("Image upload failed", error)
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
+
+  const documentInputRef = useRef<HTMLInputElement>(null)
+
+  const handleDocumentSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "Tệp quá lớn", description: "Giới hạn 10MB cho tài liệu", variant: "destructive" })
+      return
+    }
+
+    try {
+      const result = await upload(file)
+      if (result) {
+        const textarea = textareaRef.current
+        if (!textarea) return
+
+        const start = textarea.selectionStart
+        const end = textarea.selectionEnd
+        const docMarkdown = `[${result.filename || result.original_filename || "Document"}](${result.url})`
+
+        const newContent = content.substring(0, start) + docMarkdown + content.substring(end)
+        setContent(newContent)
+
+        toast({ title: "Đã thêm tài liệu", description: "Tài liệu đã được tải lên bài viết" })
+      }
+    } catch (error) {
+      console.error("Document upload failed", error)
+    } finally {
+      if (documentInputRef.current) documentInputRef.current.value = ""
+    }
+  }
+
   return (
     <AppShell showRightSidebar={false}>
       <div className="max-w-4xl mx-auto space-y-6">
@@ -207,13 +276,45 @@ export default function ComposePage() {
               </TabsList>
 
               <div className="flex items-center space-x-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageSelect}
+                />
+                <input
+                  ref={documentInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,.txt"
+                  className="hidden"
+                  onChange={handleDocumentSelect}
+                />
                 <Button variant="outline" size="sm" onClick={() => handleInsertMarkdown("#", "")}>
                   <Hash className="mr-2 h-4 w-4" />
                   Thẻ
                 </Button>
-                <Button variant="outline" size="sm">
-                  <ImageIcon className="mr-2 h-4 w-4" />
-                  Hình ảnh
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                >
+                  {isUploading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <ImageIcon className="mr-2 h-4 w-4" />
+                  )}
+                  {isUploading ? `${progress}%` : "Hình ảnh"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => documentInputRef.current?.click()}
+                  disabled={isUploading}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Tài liệu
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => handleInsertMarkdown("```\n", "\n```")}>
                   <Code className="mr-2 h-4 w-4" />

@@ -17,6 +17,7 @@ import { GroupSkeleton } from "@/components/ui/loading-skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { api } from "@/lib/api"
+import { useFileUpload } from "@/hooks/use-file-upload"
 import { debounce } from "@/lib/utils"
 import type { Group } from "@/types"
 
@@ -69,6 +70,7 @@ export default function GroupsPage() {
     "startup",
     "career",
     "freelance",
+    "job",
   ]
 
   const filterOptions = [
@@ -741,7 +743,25 @@ function CreateGroupDialog({ onCreated }: { onCreated?: () => void }) {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [tagsInput, setTagsInput] = useState("")
+  const [coverImage, setCoverImage] = useState<File | null>(null)
+  const [coverPreview, setCoverPreview] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const { upload, isUploading, progress } = useFileUpload()
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setError("Ảnh không được quá 5MB")
+        return
+      }
+      setCoverImage(file)
+      setCoverPreview(URL.createObjectURL(file))
+      setError(null)
+    }
+  }
 
   const handleSubmit = async () => {
     if (!name.trim()) {
@@ -752,6 +772,17 @@ function CreateGroupDialog({ onCreated }: { onCreated?: () => void }) {
     try {
       setSubmitting(true)
       setError(null)
+
+      let uploadedCoverUrl = undefined
+
+      if (coverImage) {
+        const result = await upload(coverImage)
+        if (result?.url) {
+          uploadedCoverUrl = result.url
+        } else {
+          throw new Error("Lỗi upload ảnh bìa")
+        }
+      }
 
       // Parse tags from input (split by comma, space, or semicolon)
       const tags = tagsInput
@@ -765,6 +796,7 @@ function CreateGroupDialog({ onCreated }: { onCreated?: () => void }) {
         description: description.trim() || undefined,
         tags,
         privacy: "public", // Always set to public
+        coverImage: uploadedCoverUrl,
       })
 
       toast({ title: "Tạo nhóm thành công", description: `Đã tạo: ${created.name}` })
@@ -772,18 +804,14 @@ function CreateGroupDialog({ onCreated }: { onCreated?: () => void }) {
       setName("")
       setDescription("")
       setTagsInput("")
+      setCoverImage(null)
+      setCoverPreview(null)
 
       // Call onCreated first to refresh the groups list
       await onCreated?.()
 
       // Small delay to ensure data is refreshed before potential redirect
       await new Promise((resolve) => setTimeout(resolve, 500))
-
-      // Only redirect if we're confident the group page exists
-      // For now, stay on groups list to show the newly created group
-      // if (created?.id) {
-      //   router.push(`/groups/${created.id}`)
-      // }
     } catch (e: any) {
       const msg = e?.message || "Tạo nhóm thất bại"
       setError(msg)
@@ -815,6 +843,37 @@ function CreateGroupDialog({ onCreated }: { onCreated?: () => void }) {
           <DialogTitle>Tạo nhóm mới</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {/* Cover Image Upload */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Ảnh bìa (không bắt buộc)</label>
+            <div
+              className="relative aspect-video w-full rounded-lg border-2 border-dashed border-input hover:bg-accent/50 transition-colors flex flex-col items-center justify-center cursor-pointer overflow-hidden bg-muted/30"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {coverPreview ? (
+                <>
+                  <img src={coverPreview} alt="Preview" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                    <p className="text-white text-sm font-medium">Thay đổi ảnh</p>
+                  </div>
+                  {isUploading && (
+                    <div className="absolute inset-0 z-10 bg-black/50 flex items-center justify-center">
+                      <Loader2 className="h-8 w-8 text-white animate-spin" />
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex flex-col items-center gap-2 text-muted-foreground p-4">
+                  <div className="h-8 w-8 rounded-full bg-background flex items-center justify-center border shadow-sm">
+                    <Plus className="h-4 w-4" />
+                  </div>
+                  <p className="text-xs">Nhấn để tải lên ảnh bìa</p>
+                </div>
+              )}
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <label className="text-sm font-medium">Tên nhóm</label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nhập tên nhóm" />
@@ -845,7 +904,7 @@ function CreateGroupDialog({ onCreated }: { onCreated?: () => void }) {
             disabled={submitting}
             className="bg-educonnect-primary hover:bg-educonnect-primary/90"
           >
-            {submitting ? "Đang tạo..." : "Tạo nhóm"}
+            {submitting ? (isUploading ? `Đang tải ảnh... ${progress}%` : "Đang tạo...") : "Tạo nhóm"}
           </Button>
         </DialogFooter>
       </DialogContent>

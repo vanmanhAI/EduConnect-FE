@@ -377,6 +377,7 @@ export const api = {
     website?: string
     linkedin?: string
     github?: string
+    avatar?: string
   }): Promise<User> {
     // Gọi API PATCH để cập nhật thông tin user
     const token = typeof window !== "undefined" ? localStorage.getItem("educonnect_token") : null
@@ -927,6 +928,7 @@ export const api = {
     description?: string
     tags?: string[]
     privacy?: "public" | "private"
+    coverImage?: string
   }): Promise<Group> {
     const token = tokenManager.getToken()
 
@@ -935,6 +937,8 @@ export const api = {
       name: payload.name,
       description: payload.description || "",
       tags: payload.tags || [],
+      privacy: payload.privacy,
+      coverImage: payload.coverImage,
     }
 
     const res = await fetch(`${API_BASE}/groups`, {
@@ -1290,7 +1294,7 @@ export const api = {
 
   async updateGroup(
     groupId: string,
-    data: { name: string; description: string; tags: string[] }
+    data: { name: string; description: string; tags: string[]; avatar?: string }
   ): Promise<Group | null> {
     try {
       const token = tokenManager.getToken()
@@ -3858,5 +3862,52 @@ export const api = {
 
     const result = await response.json()
     return result.data || result
+  },
+
+  async uploadFile(file: File, onProgress?: (progress: number) => void) {
+    const token = tokenManager.getToken()
+    if (!token) throw new Error("Token không tồn tại")
+
+    return new Promise<any>((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      const formData = new FormData()
+      formData.append("file", file)
+
+      xhr.open("POST", `${API_BASE}/files/upload`)
+      xhr.setRequestHeader("Authorization", `Bearer ${token}`)
+
+      if (onProgress) {
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = Math.round((event.loaded / event.total) * 100)
+            onProgress(percentComplete)
+          }
+        }
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const result = JSON.parse(xhr.responseText)
+            resolve(result.data || result)
+          } catch (e) {
+            reject(new Error("Phản hồi không hợp lệ"))
+          }
+        } else {
+          try {
+            const error = JSON.parse(xhr.responseText)
+            reject(new Error(error.message || `HTTP error! status: ${xhr.status}`))
+          } catch (e) {
+            reject(new Error(`HTTP error! status: ${xhr.status}`))
+          }
+        }
+      }
+
+      xhr.onerror = () => {
+        reject(new Error("Lỗi mạng"))
+      }
+
+      xhr.send(formData)
+    })
   },
 }
