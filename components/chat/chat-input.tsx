@@ -13,6 +13,7 @@ interface ChatInputProps {
   replyTo: ChatMessage | null
   onCancelReply: () => void
   disabled?: boolean
+  uploadProgress?: number
 }
 
 export const ChatInput = ({
@@ -22,6 +23,7 @@ export const ChatInput = ({
   replyTo,
   onCancelReply,
   disabled = false,
+  uploadProgress,
 }: ChatInputProps) => {
   const [message, setMessage] = useState("")
   const [isTyping, setIsTyping] = useState(false)
@@ -100,6 +102,16 @@ export const ChatInput = ({
         </div>
       )}
 
+      {/* Progress Bar for Upload */}
+      {uploadProgress !== undefined && (
+        <div className="absolute top-0 left-0 right-0 h-1 bg-muted">
+          <div
+            className="h-full bg-primary transition-all duration-300 ease-out"
+            style={{ width: `${uploadProgress}%` }}
+          />
+        </div>
+      )}
+
       <div className="flex items-end gap-2 sm:gap-3 min-w-0">
         <input type="file" ref={fileInputRef} onChange={onFileChange} className="hidden" accept="*/*" />
         <Button
@@ -107,7 +119,7 @@ export const ChatInput = ({
           variant="ghost"
           onClick={() => fileInputRef.current?.click()}
           className="h-10 w-10 sm:h-9 sm:w-9 p-0 flex-shrink-0 text-primary hover:bg-primary/10 rounded-full"
-          disabled={disabled}
+          disabled={disabled || uploadProgress !== undefined}
         >
           <Paperclip className="h-5 w-5 sm:h-4 sm:w-4" />
         </Button>
@@ -118,14 +130,14 @@ export const ChatInput = ({
             value={message}
             onChange={handleInputChange}
             onKeyPress={handleKeyPress}
-            disabled={disabled}
+            disabled={disabled || uploadProgress !== undefined}
             className="pr-10 sm:pr-12 h-10 sm:h-9 text-[16px] sm:text-sm rounded-full bg-muted/50 border-none focus-visible:ring-1 focus-visible:ring-primary/50 px-4"
           />
         </div>
 
         <Button
           onClick={handleSend}
-          disabled={!message.trim() || disabled}
+          disabled={!message.trim() || disabled || uploadProgress !== undefined}
           size="icon"
           className="h-10 w-10 sm:h-9 sm:w-9 p-0 flex-shrink-0 rounded-full shadow-none"
         >

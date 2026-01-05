@@ -9,7 +9,6 @@ import type {
   ChatThread,
   Conversation,
   Badge,
-  BadgeSummary,
   LeaderboardEntry,
   Notification,
   SearchResult,
@@ -378,6 +377,7 @@ export const api = {
     website?: string
     linkedin?: string
     github?: string
+    avatar?: string
   }): Promise<User> {
     // Gọi API PATCH để cập nhật thông tin user
     const token = typeof window !== "undefined" ? localStorage.getItem("educonnect_token") : null
@@ -681,6 +681,93 @@ export const api = {
     }
   },
 
+  async searchPosts(
+    keyword: string,
+    page: number = 1,
+    limit: number = 10,
+    decayFactor: number = 1
+  ): Promise<{ posts: Post[]; hasMore: boolean }> {
+    const token = tokenManager.getToken()
+    const url = new URL(`${API_BASE}/posts/search`)
+    url.searchParams.set("keyword", keyword)
+    url.searchParams.set("page", String(page))
+    url.searchParams.set("limit", String(limit))
+    url.searchParams.set("decayFactor", String(decayFactor))
+
+    const res = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      cache: "no-store",
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error((data && (data.message || data.error)) || "Tìm kiếm bài viết thất bại")
+    }
+
+    // Check if data structure is valid
+    if (!data.data || !data.data.items || !Array.isArray(data.data.items)) {
+      console.warn("Invalid search posts data structure:", data)
+      return {
+        posts: [],
+        hasMore: false,
+      }
+    }
+
+    // Transform API data to match Post interface
+    const posts: Post[] = data.data.items.map((item: any) => ({
+      id: item.id,
+      title: item.title,
+      content: item.content,
+      slug: item.slug || undefined,
+      excerpt: item.excerpt || undefined,
+      authorId: item.author.id,
+      author: {
+        id: item.author.id,
+        username: item.author.username,
+        displayName: item.author.displayName,
+        avatar: item.author.avatar,
+        email: "",
+        points: 0,
+        level: 1,
+        badges: [],
+        followers: 0,
+        following: 0,
+        joinedAt: new Date(),
+      },
+      groupId: item.group?.id,
+      group: item.group
+        ? {
+            id: item.group.id,
+            name: item.group.name,
+            slug: item.group.slug,
+            description: "",
+            memberCount: 0,
+            postCount: 0,
+            tag: [],
+            tags: [],
+            createdAt: new Date(),
+          }
+        : undefined,
+      tags: item.tags?.map((tag: any) => tag.name || tag) || [],
+      reactions: item.reactions || [],
+      likeCount: item.likeCount || 0,
+      commentCount: item.commentCount || 0,
+      isLiked: item.isLiked || false,
+      attachments: [],
+      createdAt: new Date(item.createdAt),
+      updatedAt: new Date(item.updatedAt),
+    }))
+
+    return {
+      posts,
+      hasMore: data.data.hasMore || false,
+    }
+  },
+
   async getFollowers(userId: string): Promise<User[]> {
     const token = tokenManager.getToken()
     const res = await fetch(`${API_BASE}/users/${userId}/followers`, {
@@ -809,99 +896,6 @@ export const api = {
     }
   },
 
-  async searchPosts(
-    keyword: string,
-    page: number = 1,
-    limit: number = 10,
-    decayFactor: number = 1
-  ): Promise<{ posts: Post[]; hasMore: boolean }> {
-    const token = tokenManager.getToken()
-    const url = new URL(`${API_BASE}/posts/search`)
-    url.searchParams.set("keyword", keyword)
-    url.searchParams.set("page", String(page))
-    url.searchParams.set("limit", String(limit))
-    url.searchParams.set("decayFactor", String(decayFactor))
-
-    const res = await fetch(url.toString(), {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      cache: "no-store",
-    })
-
-    const data = await res.json()
-    console.log("searchPosts API response:", data)
-
-    if (!res.ok) {
-      throw new Error((data && data.message) || "Tìm kiếm bài viết thất bại")
-    }
-
-    // Check if data structure is valid
-    if (!data.data || !data.data.items || !Array.isArray(data.data.items)) {
-      console.warn("Invalid search posts data structure:", data)
-      return {
-        posts: [],
-        hasMore: false,
-      }
-    }
-
-    // Transform backend data to frontend Post type
-    const posts: Post[] = data.data.items.map((post: any) => ({
-      id: post.id,
-      title: post.title,
-      content: post.content,
-      excerpt: post.excerpt,
-      slug: post.slug,
-      authorId: post.author?.id,
-      author: post.author
-        ? {
-            id: post.author.id,
-            username: post.author.username,
-            displayName: post.author.displayName,
-            avatar: post.author.avatar,
-            email: "",
-            points: 0,
-            level: 1,
-            badges: [],
-            followers: 0,
-            following: 0,
-            joinedAt: new Date(),
-          }
-        : undefined,
-      groupId: post.group?.id,
-      group: post.group
-        ? {
-            id: post.group.id,
-            name: post.group.name,
-            slug: post.group.slug,
-            description: "",
-            memberCount: 0,
-            postCount: 0,
-            isPrivate: false,
-            createdAt: new Date(),
-            ownerId: "",
-            members: [],
-          }
-        : undefined,
-      tags: transformTags(post.tags),
-      attachments: [],
-      reactions: post.reactions || [],
-      commentCount: post.commentCount || 0,
-      likeCount: post.likeCount || 0,
-      isLiked: post.isLiked || false,
-      isCommented: post.isCommented || false,
-      createdAt: new Date(post.createdAt),
-      updatedAt: new Date(post.updatedAt),
-    }))
-
-    return {
-      posts,
-      hasMore: data.data.hasMore || false,
-    }
-  },
-
   async getPostsByUser(
     userId: string,
     page: number = 1,
@@ -1021,6 +1015,7 @@ export const api = {
     description?: string
     tags?: string[]
     privacy?: "public" | "private"
+    coverImage?: string
   }): Promise<Group> {
     const token = tokenManager.getToken()
 
@@ -1029,6 +1024,8 @@ export const api = {
       name: payload.name,
       description: payload.description || "",
       tags: payload.tags || [],
+      privacy: payload.privacy,
+      coverImage: payload.coverImage,
     }
 
     const res = await fetch(`${API_BASE}/groups`, {
@@ -1384,7 +1381,7 @@ export const api = {
 
   async updateGroup(
     groupId: string,
-    data: { name: string; description: string; tags: string[] }
+    data: { name: string; description: string; tags: string[]; avatar?: string }
   ): Promise<Group | null> {
     try {
       const token = tokenManager.getToken()
@@ -3979,12 +3976,58 @@ export const api = {
     })
 
     const data = await res.json()
-    console.log("getTrendingTags API response:", data)
 
     if (!res.ok) {
-      throw new Error((data && data.message) || "Lấy danh sách thẻ thịnh hành thất bại")
+      throw new Error(data?.message || "Lấy danh sách thẻ thịnh hành thất bại")
     }
 
-    return data.data || []
+    return Array.isArray(data.data) ? data.data : []
+  },
+
+  async uploadFile(file: File, onProgress?: (progress: number) => void) {
+    const token = tokenManager.getToken()
+    if (!token) throw new Error("Token không tồn tại")
+
+    return new Promise<any>((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      const formData = new FormData()
+      formData.append("file", file)
+
+      xhr.open("POST", `${API_BASE}/files/upload`)
+      xhr.setRequestHeader("Authorization", `Bearer ${token}`)
+
+      if (onProgress) {
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = Math.round((event.loaded / event.total) * 100)
+            onProgress(percentComplete)
+          }
+        }
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const result = JSON.parse(xhr.responseText)
+            resolve(result.data || result)
+          } catch (e) {
+            reject(new Error("Phản hồi không hợp lệ"))
+          }
+        } else {
+          try {
+            const error = JSON.parse(xhr.responseText)
+            reject(new Error(error.message || `HTTP error! status: ${xhr.status}`))
+          } catch (e) {
+            reject(new Error(`HTTP error! status: ${xhr.status}`))
+          }
+        }
+      }
+
+      xhr.onerror = () => {
+        reject(new Error("Lỗi mạng"))
+      }
+
+      xhr.send(formData)
+    })
   },
 }

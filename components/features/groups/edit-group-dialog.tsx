@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { X } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { X, Camera, Loader2, Upload } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -15,22 +15,28 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useFileUpload } from "@/hooks/use-file-upload"
 import type { Group } from "@/types"
 
 interface EditGroupDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   group: Group
-  onSave: (data: { name: string; description: string; tags: string[] }) => Promise<void>
+  onSave: (data: { name: string; description: string; tags: string[]; avatar?: string }) => Promise<void>
 }
 
 export function EditGroupDialog({ open, onOpenChange, group, onSave }: EditGroupDialogProps) {
   const [name, setName] = useState(group.name)
   const [description, setDescription] = useState(group.description)
+  const [avatar, setAvatar] = useState(group.avatar)
   const [tagInput, setTagInput] = useState("")
   const [tags, setTags] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const { upload, isUploading } = useFileUpload()
 
   // Initialize tags from group
   useEffect(() => {
@@ -74,6 +80,21 @@ export function EditGroupDialog({ open, onOpenChange, group, onSave }: EditGroup
     }
   }
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    try {
+      setError(null)
+      const result = await upload(file)
+      if (result) {
+        setAvatar(result.url)
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to upload image")
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -101,6 +122,7 @@ export function EditGroupDialog({ open, onOpenChange, group, onSave }: EditGroup
         name: name.trim(),
         description: description.trim(),
         tags,
+        avatar: avatar ?? undefined,
       })
       onOpenChange(false)
     } catch (err: any) {
@@ -119,6 +141,32 @@ export function EditGroupDialog({ open, onOpenChange, group, onSave }: EditGroup
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Avatar Upload */}
+          <div className="flex justify-center mb-6">
+            <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+              <Avatar className="h-24 w-24 border-4 border-background shadow-lg">
+                <AvatarImage src={avatar || "/placeholder.svg"} />
+                <AvatarFallback className="text-2xl">{name.charAt(0).toUpperCase()}</AvatarFallback>
+              </Avatar>
+
+              <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                {isUploading ? (
+                  <Loader2 className="h-6 w-6 text-white animate-spin" />
+                ) : (
+                  <Camera className="h-8 w-8 text-white" />
+                )}
+              </div>
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/*"
+                onChange={handleFileSelect}
+                disabled={isUploading}
+              />
+            </div>
+          </div>
+
           {/* Group Name */}
           <div className="space-y-2">
             <Label htmlFor="name">Tên nhóm *</Label>

@@ -3,10 +3,11 @@
 import React, { useState, useRef, useEffect } from "react"
 import { formatDistanceToNow } from "date-fns"
 import { vi } from "date-fns/locale"
-import { Reply, MoreVertical, Trash2, Edit2, Copy } from "lucide-react"
+import { Reply, MoreVertical, Trash2, Edit2, Copy, FileText, Download, X } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Dialog, DialogContent, DialogTrigger, DialogClose, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import type { ChatMessage } from "@/types"
 
@@ -195,20 +196,133 @@ export const ChatMessageItem = ({
         {/* Message Bubble */}
         <div
           className={cn(
-            "relative px-4 py-2 text-[15px] shadow-sm break-words", // text-sm -> text-[15px]
-            isCurrentUser
-              ? "bg-primary text-primary-foreground rounded-2xl rounded-tr-sm"
-              : "bg-muted text-foreground rounded-2xl rounded-tl-sm",
-            isGrouped && isCurrentUser && "rounded-tr-2xl mr-0", // Smooth edges logic
-            isGrouped && !isCurrentUser && "rounded-tl-2xl ml-0"
+            "relative break-words",
+            // Text messages get bubble styling
+            !["image", "video", "file"].includes(message.type) &&
+              cn(
+                "px-4 py-2 text-[15px] shadow-sm",
+                isCurrentUser
+                  ? "bg-primary text-primary-foreground rounded-2xl rounded-tr-sm"
+                  : "bg-muted text-foreground rounded-2xl rounded-tl-sm",
+                isGrouped && isCurrentUser && "rounded-tr-2xl mr-0",
+                isGrouped && !isCurrentUser && "rounded-tl-2xl ml-0"
+              ),
+            // Media/Files get no parent padding/bg
+            ["image", "video", "file"].includes(message.type) && "p-0 bg-transparent shadow-none"
           )}
         >
           {/* Sender Name in Group Chat (only first message of block) */}
-          {!isCurrentUser && !isGrouped && showAvatar && isGroupChat && (
-            <div className="text-xs font-bold opacity-70 mb-1 text-primary">{message.sender?.displayName}</div>
+          {!isCurrentUser &&
+            !isGrouped &&
+            showAvatar &&
+            isGroupChat &&
+            !["image", "video", "file"].includes(message.type) && (
+              <div className="text-xs font-bold opacity-70 mb-1 text-primary">{message.sender?.displayName}</div>
+            )}
+
+          {message.content && !["image", "video", "file"].includes(message.type) && (
+            <div className="whitespace-pre-wrap">{message.content}</div>
           )}
 
-          {message.content}
+          {message.type === "image" && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <div className="relative rounded-2xl overflow-hidden my-0.5 shadow-sm group/image cursor-pointer active:scale-95 transition-transform duration-200">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={message.content}
+                    alt="Attachment"
+                    className="max-w-[260px] max-h-[360px] w-auto h-auto object-cover hover:opacity-95 transition-opacity"
+                  />
+                </div>
+              </DialogTrigger>
+              <DialogContent className="!max-w-none w-screen h-screen p-0 bg-black/95 border-none shadow-none flex flex-col items-center justify-center overflow-hidden z-[100] focus:outline-none">
+                <DialogTitle className="sr-only">Hình ảnh đính kèm</DialogTitle>
+
+                {/* Close Button */}
+                <DialogClose className="absolute top-4 right-4 z-50 p-2 bg-black/50 text-white/80 hover:text-white rounded-full backdrop-blur-sm transition-colors cursor-pointer outline-none">
+                  <X className="h-6 w-6" />
+                </DialogClose>
+
+                {/* Main Image */}
+                <div className="relative w-full h-full flex items-center justify-center p-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={message.content}
+                    alt="Full size"
+                    className="max-w-full max-h-full w-auto h-auto object-contain transition-transform duration-200"
+                  />
+                </div>
+
+                {/* Download Button */}
+                <a
+                  href={message.content.replace("/upload/", "/upload/fl_attachment/")}
+                  className="absolute bottom-8 right-8 z-50 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full backdrop-blur-md transition-all border border-white/10"
+                  title="Tải về"
+                  download
+                >
+                  <Download className="h-6 w-6" />
+                </a>
+              </DialogContent>
+            </Dialog>
+          )}
+
+          {message.type === "video" && (
+            <div className="relative rounded-2xl overflow-hidden my-0.5 max-w-[260px] shadow-sm bg-black">
+              <video controls className="w-full max-h-[360px]">
+                <source src={message.content} />
+                Trình duyệt không hỗ trợ video.
+              </video>
+            </div>
+          )}
+
+          {message.type === "file" && (
+            <a
+              href={message.content.split("|")[0].replace("/upload/", "/upload/fl_attachment/")}
+              download={message.content.split("|")[1] || "download"}
+              className={cn(
+                "flex items-center gap-3 p-3 rounded-2xl max-w-[280px] cursor-pointer transition-all border shadow-sm group/file active:scale-95 no-underline",
+                isCurrentUser
+                  ? "bg-primary border-primary text-primary-foreground hover:bg-primary/90"
+                  : "bg-muted border-transparent text-foreground hover:bg-muted/80"
+              )}
+            >
+              <div
+                className={cn(
+                  "h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm",
+                  isCurrentUser ? "bg-primary-foreground/20" : "bg-background"
+                )}
+              >
+                <FileText className={cn("h-5 w-5", isCurrentUser ? "text-primary-foreground" : "text-primary")} />
+              </div>
+              <div className="flex-1 min-w-0 text-left">
+                <p
+                  className={cn(
+                    "text-[13px] font-semibold truncate leading-tight",
+                    isCurrentUser ? "text-primary-foreground" : "text-foreground"
+                  )}
+                >
+                  {message.content.split("|")[1] || message.content.split("/").pop() || "File đính kèm"}
+                </p>
+                <p
+                  className={cn(
+                    "text-[11px] truncate mt-0.5",
+                    isCurrentUser ? "text-primary-foreground/80" : "text-muted-foreground"
+                  )}
+                >
+                  {message.content.split(".").pop()?.toUpperCase() || "FILE"}
+                </p>
+              </div>
+              <Download
+                className={cn(
+                  "h-4 w-4 transition-opacity",
+                  isCurrentUser
+                    ? "text-primary-foreground/70 group-hover/file:text-primary-foreground"
+                    : "text-muted-foreground group-hover/file:text-foreground"
+                )}
+              />
+            </a>
+          )}
         </div>
 
         {/* Desktop Actions (Hover) */}

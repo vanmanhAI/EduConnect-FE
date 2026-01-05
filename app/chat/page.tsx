@@ -35,6 +35,7 @@ import { LiveKitRoomWrapper } from "@/components/video/livekit-room"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { ChatMessageItem } from "@/components/chat/chat-message-item"
 import { ChatInput } from "@/components/chat/chat-input"
+import { ChatFiles } from "@/components/features/chat/chat-files"
 import type { ChatThread, ChatMessage } from "@/types"
 import {
   initSocket,
@@ -669,25 +670,94 @@ export default function ChatPage() {
     }
   }
 
-  const handleFileSelect = (file: File) => {
-    if (file && activeThread) {
-      // Mock file upload - in real app would upload to server
-      const message: Omit<ChatMessage, "id"> = {
-        threadId: activeThread.id,
-        senderId: currentUser?.id || "current-user",
-        sender: currentUser || ({ id: "current-user", displayName: "Bạn" } as any),
-        conversationId: activeThread.id,
-        content: `Đã gửi file: ${file.name}`,
-        timestamp: new Date(),
-        createdAt: new Date(),
-        type: "file",
-        isRead: true,
-      }
+  // File upload progress state
+  const [uploadProgress, setUploadProgress] = useState<number | undefined>(undefined)
 
-      api.sendMessage(message).then(() => {
-        loadMessages(activeThread.id, true)
-        loadChatThreads()
-      })
+  // ... (existing code)
+
+  const handleFileSelect = async (file: File) => {
+    if (file && activeThread) {
+      try {
+        setUploadProgress(0) // Start progress
+
+        // Upload to server with progress callback
+        const uploadResult = await api.uploadFile(file, (progress) => {
+          setUploadProgress(progress)
+        })
+
+        // Determine type based on resource_type or format
+        let messageType: "file" | "image" | "video" = "file"
+        if (uploadResult.resource_type === "image" || ["jpg", "png", "jpeg", "gif"].includes(uploadResult.format)) {
+          messageType = "image"
+        } else if (uploadResult.resource_type === "video") {
+          messageType = "video"
+        }
+
+        const messageContent =
+          messageType === "file" ? `${uploadResult.url}|${uploadResult.filename}` : uploadResult.url
+
+        const socket = getSocket()
+        console.log("HandleFileSelect - Socket Status:", {
+          connected: socket?.connected,
+          socketId: socket?.id,
+          threadId: activeThread.id,
+        })
+
+        if (socket && socket.connected) {
+          // Send via Socket for real-time update
+          console.log("Sending file message via Socket:", { type: messageType, content: messageContent })
+
+          sendSocketMessage({
+            conversationId: activeThread.id,
+            content: messageContent,
+            type: messageType,
+            replyToId: replyTo?.id,
+          })
+          setReplyTo(null)
+
+          // Force scroll immediately
+          if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
+          }
+        } else {
+          // Fallback to REST
+          console.log("Socket not connected, falling back to REST")
+          const message: Omit<ChatMessage, "id"> = {
+            threadId: activeThread.id,
+            senderId: currentUser?.id || "current-user",
+            sender: currentUser || ({ id: "current-user", displayName: "Bạn" } as any),
+            conversationId: activeThread.id,
+            content: messageContent,
+            timestamp: new Date(),
+            createdAt: new Date(),
+            type: messageType,
+            isRead: true,
+            replyToId: replyTo?.id,
+            replyTo: replyTo || undefined,
+          }
+
+          const sentMessage = await api.sendMessage(message)
+          setReplyTo(null)
+
+          // Optimistic update for REST fallback
+          setMessages((prev) => [...prev, sentMessage])
+        }
+
+        setUploadProgress(undefined) // Reset progress
+
+        // Robust scroll strategy
+        const scrollBottom = () => {
+          console.log("Forcing scroll to bottom")
+          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+        }
+        setTimeout(scrollBottom, 100)
+        setTimeout(scrollBottom, 500)
+        setTimeout(scrollBottom, 1000)
+      } catch (error) {
+        console.error("Failed to upload file:", error)
+        alert("Lỗi upload file: " + (error as any).message)
+        setUploadProgress(undefined) // Reset on error
+      }
     }
   }
 
@@ -1127,6 +1197,7 @@ export default function ChatPage() {
                 onFileSelect={handleFileSelect}
                 replyTo={replyTo}
                 onCancelReply={() => setReplyTo(null)}
+                uploadProgress={uploadProgress}
               />
             </>
           ) : (
@@ -1196,10 +1267,12 @@ export default function ChatPage() {
                 <span>Tùy chỉnh đoạn chat</span>
                 <ArrowLeft className="h-4 w-4 rotate-180 text-muted-foreground" />
               </Button>
-              <Button variant="ghost" className="w-full justify-between font-medium h-12">
-                <span>File phương tiện & file</span>
-                <ArrowLeft className="h-4 w-4 rotate-180 text-muted-foreground" />
-              </Button>
+
+              <ChatFiles
+                threadId={activeThread.id}
+                isOpen={true} // Default open or managed by state if preferred
+              />
+
               <Button variant="ghost" className="w-full justify-between font-medium h-12">
                 <span>Quyền riêng tư & hỗ trợ</span>
                 <ArrowLeft className="h-4 w-4 rotate-180 text-muted-foreground" />

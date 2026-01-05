@@ -59,8 +59,10 @@ export interface GroupsApiResponse {
 
 export interface CreateGroupRequest {
   name: string
-  description: string
-  tags: string[]
+  description?: string
+  tags?: string[]
+  privacy?: "public" | "private"
+  coverImage?: string
 }
 
 export interface CreateGroupApiResponse {
@@ -151,7 +153,7 @@ export interface ChatMessage {
   senderId: string
   sender: User
   conversationId: string
-  type: "text" | "file" | "system"
+  type: "text" | "file" | "system" | "image" | "video"
   attachments?: FileAsset[]
   timestamp: Date
   createdAt: Date
@@ -181,6 +183,7 @@ export interface ChatThread {
   type: "direct" | "group"
   groupId?: string
   name?: string
+  avatar?: string
 }
 
 export interface Conversation {

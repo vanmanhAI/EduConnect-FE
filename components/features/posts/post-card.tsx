@@ -28,6 +28,34 @@ import { formatDate, truncateText, extractTags } from "@/lib/utils"
 import { api } from "@/lib/api"
 import { tokenManager } from "@/lib/auth"
 import type { Post } from "@/types"
+import { ImageGrid } from "@/components/ui/image-grid"
+import { FileText, Download } from "lucide-react"
+
+const extractDocuments = (markdown: string): { name: string; url: string; type: string }[] => {
+  const regex = /\[(.*?)\]\((.*?)\)/g
+  const docs = []
+  let match
+  while ((match = regex.exec(markdown)) !== null) {
+    const name = match[1]
+    const url = match[2]
+    // Check if it's a file upload (Cloudinary) and NOT an image (which uses ![...])
+    if (url.includes("/upload/") && !markdown.substring(match.index - 1, match.index).includes("!")) {
+      const extension = name.split(".").pop()?.toUpperCase() || "FILE"
+      docs.push({ name, url, type: extension })
+    }
+  }
+  return docs
+}
+
+const extractImages = (markdown: string): string[] => {
+  const regex = /!\[.*?\]\((.*?)\)/g
+  const images = []
+  let match
+  while ((match = regex.exec(markdown)) !== null) {
+    images.push(match[1])
+  }
+  return images
+}
 
 interface PostCardProps {
   post: Post
@@ -237,6 +265,18 @@ export function PostCard({
     }
   }
 
+  const documents = extractDocuments(post.content)
+
+  let cleanContent = post.content
+    .replace(/!\[.*?\]\(.*?\)/g, "") // remove images
+    .replace(/#[\w]+/g, "") // remove hashtags
+
+  // Remove extracted documents
+  documents.forEach((doc) => {
+    const linkRegex = new RegExp(`\\[${doc.name}\\]\\(${doc.url}\\)`, "g")
+    cleanContent = cleanContent.replace(linkRegex, "")
+  })
+
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader className="pb-3">
@@ -346,9 +386,41 @@ export function PostCard({
                 },
               }}
             >
-              {post.content.replace(/#[\w]+/g, "")}
+              {cleanContent}
             </ReactMarkdown>
           </div>
+
+          {documents.length > 0 && (
+            <div className="mt-3 grid gap-2">
+              {documents.map((doc, idx) => (
+                <a
+                  key={idx}
+                  href={doc.url.replace("/upload/", "/upload/fl_attachment/")}
+                  download={doc.name}
+                  className="flex items-center gap-3 p-3 rounded-xl border bg-muted/30 hover:bg-muted/60 transition-colors group no-underline"
+                >
+                  <div className="h-10 w-10 rounded-lg bg-background flex items-center justify-center shadow-sm text-educonnect-primary">
+                    <FileText className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate text-foreground group-hover:text-educonnect-primary transition-colors">
+                      {doc.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{doc.type}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground group-hover:text-foreground"
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </a>
+              ))}
+            </div>
+          )}
+
+          <ImageGrid images={extractImages(post.content)} />
 
           {compact && (
             <Link
