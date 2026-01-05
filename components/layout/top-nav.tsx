@@ -53,7 +53,7 @@ export function TopNav({ onMenuClick }: TopNavProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
+      <header className="fixed top-0 left-0 right-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
         <div className="flex h-16 items-center justify-between px-2 sm:px-4 max-w-7xl mx-auto gap-2 min-w-0">
           {/* Left section */}
           <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">
@@ -74,7 +74,7 @@ export function TopNav({ onMenuClick }: TopNavProps) {
           </div>
 
           {/* Center - Search */}
-          <div className="flex-1 min-w-0 max-w-md mx-1 sm:mx-4">
+          <div className="flex-1 max-w-md mx-2 sm:mx-4">
             <Button
               variant="outline"
               className="w-full justify-start text-muted-foreground bg-muted/50 border-0 hover:bg-background hover:ring-2 hover:ring-educonnect-primary/20 transition-all h-9 sm:h-10 text-xs sm:text-sm"
@@ -90,7 +90,7 @@ export function TopNav({ onMenuClick }: TopNavProps) {
           </div>
 
           {/* Right section */}
-          <div className="flex items-center space-x-1 sm:space-x-2 md:space-x-3 flex-shrink-0">
+          <div className="flex items-center space-x-1 sm:space-x-3">
             {/* Auth buttons for non-logged in users */}
             {!user && (
               <div className="flex items-center space-x-1 sm:space-x-2">

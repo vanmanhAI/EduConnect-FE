@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { Calendar, Trophy, UserPlus, UserCheck, Settings, Share2, MessageSquare } from "lucide-react"
+import { Calendar, Trophy, UserPlus, UserCheck, Settings, Share2, MessageSquare, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -44,6 +44,11 @@ export default function ProfilePage() {
   const [followingLoading, setFollowingLoading] = useState(false)
   const [followingDialogOpen, setFollowingDialogOpen] = useState(false)
   const [messageLoading, setMessageLoading] = useState(false)
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -91,14 +96,16 @@ export default function ProfilePage() {
         }
 
         // Load các dữ liệu khác
-        const [userPosts, userGroupsResult, userBadges] = await Promise.all([
-          api.getPosts(), // Mock: filter by user in real implementation
+        const [postsResult, userGroupsResult, userBadges] = await Promise.all([
+          api.getPostsByUser(userData.id, 1, 10),
           api.getGroups(1, 3), // Mock: filter by user groups in real implementation
           api.getBadges(),
         ])
 
         setUser(userData)
-        setPosts(userPosts.slice(0, 5)) // Mock: user's posts
+        setPosts(postsResult.posts)
+        setHasMore(postsResult.hasMore)
+        setPage(1)
         setGroups(userGroupsResult.groups) // Get groups from result
         setBadges(userBadges.slice(0, 4)) // Mock: user's badges
         console.log("Main loadUserData - Setting isFollowing:", userData.isFollowing, "for user:", userData.displayName)
@@ -261,6 +268,51 @@ export default function ProfilePage() {
       setMessageLoading(false)
     }
   }
+
+  const loadMorePosts = useCallback(async () => {
+    if (loadingMore || !hasMore || !user) return
+
+    try {
+      setLoadingMore(true)
+      const nextPage = page + 1
+      const result = await api.getPostsByUser(user.id, nextPage, 10)
+
+      setPosts((prev) => [...prev, ...result.posts])
+      setHasMore(result.hasMore)
+      setPage(nextPage)
+    } catch (error) {
+      console.error("Failed to load more posts:", error)
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [loadingMore, hasMore, user, page])
+
+  useEffect(() => {
+    if (loading || activeTab !== "posts") return
+
+    if (observerRef.current) {
+      observerRef.current.disconnect()
+    }
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          loadMorePosts()
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    if (loadMoreRef.current) {
+      observerRef.current.observe(loadMoreRef.current)
+    }
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect()
+      }
+    }
+  }, [loading, hasMore, loadingMore, loadMorePosts, activeTab])
 
   const handleRetry = () => {
     setError(null)
@@ -575,10 +627,25 @@ export default function ProfilePage() {
                   }
                 />
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
-                  {posts.map((post) => (
-                    <PostCard key={post.id} post={post} />
-                  ))}
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 gap-4 md:gap-6">
+                    {posts.map((post) => (
+                      <PostCard key={post.id} post={post} />
+                    ))}
+                  </div>
+
+                  {/* Infinite scroll trigger */}
+                  <div ref={loadMoreRef} className="py-4 flex justify-center">
+                    {loadingMore && (
+                      <div className="flex items-center space-x-2 text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span>Đang tải thêm...</span>
+                      </div>
+                    )}
+                    {!loadingMore && !hasMore && posts.length > 0 && (
+                      <span className="text-sm text-muted-foreground">Đã hiển thị tất cả bài viết</span>
+                    )}
+                  </div>
                 </div>
               )}
             </TabsContent>

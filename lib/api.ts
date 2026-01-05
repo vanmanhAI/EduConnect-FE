@@ -609,6 +609,77 @@ export const api = {
     return mockUsers
   },
 
+  async searchUsers(
+    keyword: string,
+    page: number = 1,
+    limit: number = 10
+  ): Promise<{ users: User[]; hasMore: boolean; total: number }> {
+    const token = tokenManager.getToken()
+    const url = new URL(`${API_BASE}/users/search`)
+    url.searchParams.set("keyword", keyword)
+    url.searchParams.set("page", String(page))
+    url.searchParams.set("limit", String(limit))
+
+    const res = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      cache: "no-store",
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error((data && (data.message || data.error)) || "Tìm kiếm thất bại")
+    }
+
+    // Check if data structure is valid
+    if (!data.data || !data.data.items || !Array.isArray(data.data.items)) {
+      console.warn("Invalid search data structure:", data)
+      return {
+        users: [],
+        hasMore: false,
+        total: 0,
+      }
+    }
+
+    // Transform backend data to frontend User type
+    const users = data.data.items.map((user: any) => ({
+      id: user.id,
+      username: user.username,
+      email: "", // Backend doesn't return email for privacy
+      displayName: user.displayName,
+      avatar: user.avatar || null,
+      bio: user.bio || "",
+      location: "",
+      website: "",
+      linkedin: "",
+      github: "",
+      points: user.points || 0,
+      level: user.level || 1,
+      experiencePoints: 0,
+      followersCount: user.followersCount || 0,
+      followingCount: user.followingCount || 0,
+      postsCount: 0,
+      groupsCount: 0,
+      experienceLevel: "beginner" as const,
+      profileVisibility: user.profileVisibility || "public",
+      badges: [],
+      followers: user.followersCount || 0,
+      following: user.followingCount || 0,
+      joinedAt: new Date(),
+      isFollowing: user.isFollowing || false,
+      isOnline: user.isOnline || false,
+    }))
+
+    return {
+      users,
+      hasMore: data.data.hasMore || false,
+      total: data.data.items.length,
+    }
+  },
+
   async getFollowers(userId: string): Promise<User[]> {
     const token = tokenManager.getToken()
     const res = await fetch(`${API_BASE}/users/${userId}/followers`, {
@@ -734,6 +805,71 @@ export const api = {
     const data: UnfollowResponse = await res.json()
     if (!res.ok || !data.success) {
       throw new Error((data && data.message) || "Không thể bỏ theo dõi người dùng")
+    }
+  },
+
+  async getPostsByUser(
+    userId: string,
+    page: number = 1,
+    limit: number = 10
+  ): Promise<{ posts: Post[]; hasMore: boolean }> {
+    const token = tokenManager.getToken()
+    const url = new URL(`${API_BASE}/posts/by-user/${userId}`)
+    url.searchParams.set("page", String(page))
+    url.searchParams.set("limit", String(limit))
+
+    const res = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      cache: "no-store",
+    })
+
+    const data = await res.json()
+    console.log("getPostsByUser API response:", data)
+
+    if (!res.ok) {
+      throw new Error((data && data.message) || "Không thể tải danh sách bài viết")
+    }
+
+    // Check if data structure is valid
+    if (!data.data || !data.data.items || !Array.isArray(data.data.items)) {
+      console.warn("Invalid posts data structure:", data)
+      return {
+        posts: [],
+        hasMore: false,
+      }
+    }
+
+    // Transform backend data to frontend Post type
+    const posts: Post[] = data.data.items.map((post: any) => ({
+      id: post.id,
+      title: post.title,
+      content: post.content,
+      slug: post.slug,
+      excerpt: post.excerpt,
+      createdAt: new Date(post.createdAt),
+      updatedAt: new Date(post.updatedAt),
+      authorId: post.author?.id,
+      author: {
+        id: post.author?.id,
+        username: post.author?.username,
+        displayName: post.author?.displayName,
+        avatar: post.author?.avatar,
+      },
+      isLiked: post.isLiked || false,
+      likeCount: post.likeCount || 0,
+      commentCount: post.commentCount || 0,
+      tags: transformTags(post.tags) || [],
+      reactions: post.reactions || [],
+      isCommented: post.isCommented || false,
+    }))
+
+    return {
+      posts,
+      hasMore: data.data.hasMore || false,
     }
   },
 
@@ -910,9 +1046,17 @@ export const api = {
   },
 
   // Search groups by keyword using GET with query parameter
-  async searchGroupsByKeyword(keyword: string): Promise<{ total: number; groups: Group[] }> {
+  async searchGroupsByKeyword(
+    keyword: string,
+    page: number = 1,
+    limit: number = 18,
+    decayFactor: number = 0.05
+  ): Promise<{ groups: Group[]; hasMore: boolean; total: number }> {
     const token = tokenManager.getToken()
     const url = new URL(`${API_BASE}/groups/search`)
+    url.searchParams.set("page", String(page))
+    url.searchParams.set("limit", String(limit))
+    url.searchParams.set("decayFactor", String(decayFactor))
     url.searchParams.set("keyword", keyword)
 
     const res = await fetch(url.toString(), {
@@ -930,28 +1074,39 @@ export const api = {
     }
 
     // Check if data structure is valid
-    if (!data.data || !data.data.groups || !Array.isArray(data.data.groups)) {
-      console.warn("Invalid groups data structure:", data)
+    if (!data.data || !data.data.items || !Array.isArray(data.data.items)) {
+      console.warn("Invalid groups search data structure:", data)
       return {
-        total: 0,
         groups: [],
+        hasMore: false,
+        total: 0,
       }
     }
 
     // Transform API data to match frontend interface
-    const groups = data.data.groups.map((group: any) => ({
-      ...group,
+    const groups = data.data.items.map((group: any) => ({
+      id: group.id,
+      name: group.name,
+      slug: group.slug,
+      description: group.description || "",
+      coverImage: group.coverImage,
+      avatar: group.avatar,
+      ownerId: group.ownerId,
+      memberCount: group.memberCount || 0,
+      postCount: group.postCount || 0,
       createdAt: new Date(group.createdAt),
-      tags: group.tag || [], // Map 'tag' field to 'tags' for backward compatibility
-      isPrivate: false, // Default value as API doesn't provide this field
-      ownerId: "", // Default value as API doesn't provide this field
-      members: [], // Default value as API doesn't provide this field
-      postCount: group.postCount || 0, // Ensure postCount is available
+      tags: (group.tags || []).filter((tag: any) => tag && tag.name).map((tag: any) => tag.name),
+      tag: (group.tags || []).filter((tag: any) => tag && tag.name).map((tag: any) => tag.name),
+      isPrivate: false,
+      members: [],
+      userRole: group.isJoined ? "member" : null,
+      joinStatus: group.isJoined ? "joined" : "not-joined",
     }))
 
     return {
-      total: data.data.total || 0,
       groups,
+      hasMore: data.data.hasMore || false,
+      total: data.data.items.length, // heuristics if total not provided at top level
     }
   },
 
@@ -1220,6 +1375,35 @@ export const api = {
     } catch (error) {
       console.error("Error deleting group:", error)
       throw error
+    }
+  },
+
+  async shareGroup(groupId: string): Promise<string | null> {
+    try {
+      const token = tokenManager.getToken()
+      const res = await fetch(`${API_BASE}/groups/${groupId}/share`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || "Failed to get share link")
+      }
+
+      const response = await res.json()
+
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to get share link")
+      }
+
+      return response.data.url
+    } catch (error) {
+      console.error("Error sharing group:", error)
+      return null
     }
   },
 

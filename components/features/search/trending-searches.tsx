@@ -44,8 +44,6 @@ export function TrendingSearches({ onSearch, className }: TrendingSearchesProps)
         { query: "tailwind css", count: 22, trend: "stable", category: "posts" },
         { query: "nodejs", count: 19, trend: "up", category: "posts" },
         { query: "python", count: 16, trend: "down", category: "tags" },
-        { query: "design system", count: 14, trend: "up", category: "posts" },
-        { query: "web development", count: 12, trend: "stable", category: "groups" },
       ]
 
       setTrendingSearches(mockTrending)
@@ -125,9 +123,9 @@ export function TrendingSearches({ onSearch, className }: TrendingSearchesProps)
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-64">
+        <ScrollArea className="h-66">
           <div className="space-y-3">
-            {trendingSearches.map((item, index) => (
+            {trendingSearches.slice(0, 8).map((item, index) => (
               <div key={item.query} className="flex items-center justify-between group">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <span className="text-sm font-medium text-muted-foreground w-6">#{index + 1}</span>
