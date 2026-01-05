@@ -437,23 +437,6 @@ export default function GroupsPage() {
 
   const rightSidebarContent = (
     <div className="space-y-6">
-      {/* Categories */}
-      <div>
-        <h3 className="font-semibold mb-3">Danh mục phổ biến</h3>
-        <div className="flex flex-wrap gap-2">
-          {popularCategories.map((category) => (
-            <Badge
-              key={category}
-              variant="secondary"
-              className="cursor-pointer hover:bg-educonnect-primary hover:text-white transition-colors"
-              onClick={() => setSearchQuery(category)}
-            >
-              #{category}
-            </Badge>
-          ))}
-        </div>
-      </div>
-
       {/* Quick Stats */}
       <div className="space-y-2 text-sm text-muted-foreground">
         <div className="flex justify-between">
@@ -611,28 +594,6 @@ export default function GroupsPage() {
                       ))}
                   </div>
                 </div>
-              )}
-            </div>
-            <div className="flex gap-2">
-              {!searchQuery.trim() && (
-                <Select value={selectedFilter} onValueChange={setSelectedFilter}>
-                  <SelectTrigger className="w-[180px]">
-                    <Filter className="mr-2 h-4 w-4" />
-                    <SelectValue placeholder="Bộ lọc" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filterOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              {(selectedFilter !== "all" || searchQuery.trim()) && (
-                <Button variant="outline" size="sm" onClick={handleClearFilter} className="px-3" title="Xóa bộ lọc">
-                  <X className="h-4 w-4" />
-                </Button>
               )}
             </div>
           </div>

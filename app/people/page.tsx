@@ -29,8 +29,6 @@ export default function PeoplePage() {
   const [page, setPage] = useState(1)
   const [loadingMore, setLoadingMore] = useState(false)
 
-  const popularSkills = ["javascript", "react", "design", "python", "marketing", "startup"]
-
   useEffect(() => {
     // Only load initial users if no search query
     if (!searchQuery.trim()) {
@@ -233,23 +231,6 @@ export default function PeoplePage() {
           <span className="font-medium">{Math.floor(users.length * 0.3)}</span>
         </div>
       </div>
-
-      {/* Popular Skills */}
-      <div>
-        <h3 className="font-semibold mb-3">Kỹ năng phổ biến</h3>
-        <div className="flex flex-wrap gap-2">
-          {popularSkills.map((skill) => (
-            <Badge
-              key={skill}
-              variant="secondary"
-              className="cursor-pointer hover:bg-educonnect-primary hover:text-white transition-colors"
-              onClick={() => setSearchQuery(skill)}
-            >
-              {skill}
-            </Badge>
-          ))}
-        </div>
-      </div>
     </div>
   )
 
@@ -290,11 +271,6 @@ export default function PeoplePage() {
               <SelectItem value="followers">Nhiều người theo dõi</SelectItem>
             </SelectContent>
           </Select>
-
-          <Button variant="outline">
-            <Filter className="mr-2 h-4 w-4" />
-            Bộ lọc
-          </Button>
         </div>
 
         {/* Tabs */}
