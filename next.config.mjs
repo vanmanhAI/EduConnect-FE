@@ -8,8 +8,7 @@ const nextConfig = {
   },
   images: {
     unoptimized: true,
-  },
-  allowedDevOrigins: ['others-monica-southampton-separated.trycloudflare.com'],
+  }
 }
 
 export default nextConfig
