@@ -183,6 +183,7 @@ export interface ChatThread {
   type: "direct" | "group"
   groupId?: string
   name?: string
+  avatar?: string
 }
 
 export interface Conversation {

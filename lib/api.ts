@@ -9,7 +9,6 @@ import type {
   ChatThread,
   Conversation,
   Badge,
-  BadgeSummary,
   LeaderboardEntry,
   Notification,
   SearchResult,
@@ -807,99 +806,6 @@ export const api = {
     const data: UnfollowResponse = await res.json()
     if (!res.ok || !data.success) {
       throw new Error((data && data.message) || "Không thể bỏ theo dõi người dùng")
-    }
-  },
-
-  async searchPosts(
-    keyword: string,
-    page: number = 1,
-    limit: number = 10,
-    decayFactor: number = 1
-  ): Promise<{ posts: Post[]; hasMore: boolean }> {
-    const token = tokenManager.getToken()
-    const url = new URL(`${API_BASE}/posts/search`)
-    url.searchParams.set("keyword", keyword)
-    url.searchParams.set("page", String(page))
-    url.searchParams.set("limit", String(limit))
-    url.searchParams.set("decayFactor", String(decayFactor))
-
-    const res = await fetch(url.toString(), {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      cache: "no-store",
-    })
-
-    const data = await res.json()
-    console.log("searchPosts API response:", data)
-
-    if (!res.ok) {
-      throw new Error((data && data.message) || "Tìm kiếm bài viết thất bại")
-    }
-
-    // Check if data structure is valid
-    if (!data.data || !data.data.items || !Array.isArray(data.data.items)) {
-      console.warn("Invalid search posts data structure:", data)
-      return {
-        posts: [],
-        hasMore: false,
-      }
-    }
-
-    // Transform backend data to frontend Post type
-    const posts: Post[] = data.data.items.map((post: any) => ({
-      id: post.id,
-      title: post.title,
-      content: post.content,
-      excerpt: post.excerpt,
-      slug: post.slug,
-      authorId: post.author?.id,
-      author: post.author
-        ? {
-            id: post.author.id,
-            username: post.author.username,
-            displayName: post.author.displayName,
-            avatar: post.author.avatar,
-            email: "",
-            points: 0,
-            level: 1,
-            badges: [],
-            followers: 0,
-            following: 0,
-            joinedAt: new Date(),
-          }
-        : undefined,
-      groupId: post.group?.id,
-      group: post.group
-        ? {
-            id: post.group.id,
-            name: post.group.name,
-            slug: post.group.slug,
-            description: "",
-            memberCount: 0,
-            postCount: 0,
-            isPrivate: false,
-            createdAt: new Date(),
-            ownerId: "",
-            members: [],
-          }
-        : undefined,
-      tags: transformTags(post.tags),
-      attachments: [],
-      reactions: post.reactions || [],
-      commentCount: post.commentCount || 0,
-      likeCount: post.likeCount || 0,
-      isLiked: post.isLiked || false,
-      isCommented: post.isCommented || false,
-      createdAt: new Date(post.createdAt),
-      updatedAt: new Date(post.updatedAt),
-    }))
-
-    return {
-      posts,
-      hasMore: data.data.hasMore || false,
     }
   },
 
@@ -3983,13 +3889,12 @@ export const api = {
     })
 
     const data = await res.json()
-    console.log("getTrendingTags API response:", data)
 
     if (!res.ok) {
-      throw new Error((data && data.message) || "Lấy danh sách thẻ thịnh hành thất bại")
+      throw new Error(data?.message || "Lấy danh sách thẻ thịnh hành thất bại")
     }
 
-    return data.data || []
+    return Array.isArray(data.data) ? data.data : []
   },
 
   async uploadFile(file: File, onProgress?: (progress: number) => void) {
