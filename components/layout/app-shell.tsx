@@ -12,20 +12,21 @@ interface AppShellProps {
   children: React.ReactNode
   showRightSidebar?: boolean
   rightSidebarContent?: React.ReactNode
+  noPadding?: boolean
 }
 
-export function AppShell({ children, showRightSidebar = true, rightSidebarContent }: AppShellProps) {
+export function AppShell({ children, showRightSidebar = true, rightSidebarContent, noPadding = false }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div className="min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-background pt-16">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       <TopNav onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
 
-      <div className="flex">
+      <div className="flex min-w-0 pt-16">
         <LeftSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-        <main className="flex-1 lg:ml-64">
-          <div className={cn("mx-auto max-w-7xl px-3 py-4 lg:px-4 lg:py-6", showRightSidebar ? "lg:pr-80" : "")}>
+        <main className="flex-1 lg:ml-64 min-w-0 overflow-x-hidden">
+          <div className={cn("mx-auto max-w-7xl", noPadding ? "p-0" : "px-4 py-6", showRightSidebar ? "lg:pr-80" : "")}>
             {children}
           </div>
         </main>

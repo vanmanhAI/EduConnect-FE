@@ -810,7 +810,7 @@ function CreateGroupDialog({ onCreated }: { onCreated?: () => void }) {
           Tạo nhóm
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="w-full max-w-[600px] mx-4 sm:mx-0">
         <DialogHeader>
           <DialogTitle>Tạo nhóm mới</DialogTitle>
         </DialogHeader>

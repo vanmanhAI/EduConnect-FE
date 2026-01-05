@@ -6,7 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/contexts/auth-context"
 import { NotificationProvider } from "@/components/notifications/notification-provider"
 import { NotificationContainer } from "@/components/notifications/notification-container"
-import { VideoCallWrapper } from "@/components/video/video-call-wrapper"
+import { IncomingCallListener } from "@/components/video/incoming-call-listener"
 import { Suspense } from "react"
 import "./globals.css"
 
@@ -23,8 +23,19 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "EduConnect - Nền tảng học tập xã hội",
-  description: "Kết nối, học hỏi và phát triển cùng cộng đồng",
+  title: "EduConnect - Nền tảng học tập trực tuyến",
+  description: "Kết nối, chia sẻ và học tập cùng nhau",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "EduConnect",
+  },
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false, // Prevent zooming to feel more native
+  },
   generator: "v0.app",
 }
 
@@ -47,10 +58,9 @@ export default function RootLayout({
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
             <AuthProvider>
               <NotificationProvider>
-                <VideoCallWrapper>
-                  {children}
-                  <NotificationContainer />
-                </VideoCallWrapper>
+                {children}
+                <NotificationContainer />
+                <IncomingCallListener />
               </NotificationProvider>
             </AuthProvider>
           </ThemeProvider>

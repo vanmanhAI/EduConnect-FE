@@ -2493,6 +2493,8 @@ export const api = {
           })),
           lastMessage,
           unreadCount,
+          groupId: conv.groupId,
+          name: conv.name,
         }
       })
     } catch (error) {
@@ -2500,6 +2502,80 @@ export const api = {
       // Fallback to mock data
       await delay(400)
       return mockChatThreads
+    }
+  },
+
+  async getConversationByGroupId(groupId: string): Promise<ChatThread | null> {
+    const token = tokenManager.getToken()
+    if (!token) throw new Error("Token không tồn tại")
+
+    try {
+      const response = await fetch(`${API_BASE}/conversations/groups/${groupId}/conversation`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      })
+
+      if (!response.ok) {
+        if (response.status === 404) return null
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+      const conv = result.data || result
+
+      // Transform single conversation to ChatThread
+      const participants = conv.participants || []
+
+      let lastMessage: {
+        id: string
+        content: string
+        timestamp: Date
+        senderId: string
+      }
+
+      if (conv.lastMessage) {
+        lastMessage = {
+          id: conv.lastMessage.id || conv.lastMessageId || "",
+          content: conv.lastMessage.content || "",
+          timestamp: conv.lastMessage.createdAt
+            ? new Date(conv.lastMessage.createdAt)
+            : conv.lastActivityAt
+              ? new Date(conv.lastActivityAt)
+              : new Date(conv.createdAt || Date.now()),
+          senderId: conv.lastMessage.senderId || conv.lastMessage.sender?.id || "",
+        }
+      } else {
+        lastMessage = {
+          id: "",
+          content: "Chưa có tin nhắn",
+          timestamp: new Date(conv.createdAt || Date.now()),
+          senderId: "",
+        }
+      }
+
+      const unreadCount = conv.unreadCount !== undefined ? conv.unreadCount : 0
+
+      return {
+        id: conv.id,
+        type: conv.type || "direct",
+        participants: participants.map((p: any) => ({
+          id: p.userId || p.user?.id || "",
+          name: p.user?.displayName || p.user?.username || "",
+          displayName: p.user?.displayName || p.user?.username || "",
+          avatar: p.user?.avatar || null,
+          isOnline: p.user?.isOnline || false,
+        })),
+        lastMessage,
+        unreadCount,
+        groupId: conv.groupId,
+        name: conv.name,
+      }
+    } catch (error) {
+      console.error("Failed to fetch group conversation:", error)
+      return null
     }
   },
 
@@ -2546,6 +2622,24 @@ export const api = {
         createdAt: new Date(msg.createdAt || Date.now()),
         isRead: true, // TODO: Implement read status from participants
         replyToId: msg.replyToId,
+        replyTo: msg.replyTo
+          ? {
+              id: msg.replyTo.id,
+              conversationId: msg.replyTo.conversationId,
+              senderId: msg.replyTo.senderId,
+              sender: msg.replyTo.sender
+                ? {
+                    id: msg.replyTo.sender.id,
+                    displayName: msg.replyTo.sender.displayName || msg.replyTo.sender.username || "",
+                    username: msg.replyTo.sender.username || "",
+                    avatar: msg.replyTo.sender.avatar || null,
+                  }
+                : undefined,
+              content: msg.replyTo.content,
+              type: msg.replyTo.type,
+              createdAt: new Date(msg.replyTo.createdAt),
+            }
+          : undefined,
       }))
     } catch (error) {
       console.error("Failed to fetch messages:", error)
@@ -3538,36 +3632,32 @@ export const api = {
     return ["react hooks", "javascript tips", "css grid", "typescript", "nextjs", "tailwind css", "nodejs", "python"]
   },
 
-  // Video Calls
-  async createVideoCall(data: {
-    participantIds: string[]
-    title?: string
-    description?: string
-    groupId?: string
-    maxParticipants?: number
-  }) {
+  async getVideoCalls(filters?: { userId?: string; groupId?: string; status?: string; callType?: string }) {
     const token = tokenManager.getToken()
-    if (!token) {
-      throw new Error("Token không tồn tại")
+    const queryParams = new URLSearchParams()
+    if (filters?.userId) queryParams.append("userId", filters.userId)
+    if (filters?.groupId) queryParams.append("groupId", filters.groupId)
+    if (filters?.status) queryParams.append("status", filters.status)
+    if (filters?.callType) queryParams.append("callType", filters.callType)
+
+    try {
+      const response = await fetch(`${API_BASE}/video-calls?${queryParams.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token || ""}`,
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        return data.data || []
+      }
+      return []
+    } catch (error) {
+      console.warn("Failed to fetch video calls:", error)
+      return []
     }
-
-    const response = await fetch(`${API_BASE}/video-calls`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify(data),
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || `HTTP error! status: ${response.status}`)
-    }
-
-    const result = await response.json()
-    return result.data || result
   },
 
   async getVideoCall(callId: string) {
@@ -3600,35 +3690,6 @@ export const api = {
     }
 
     const response = await fetch(`${API_BASE}/video-calls/room/${roomId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || `HTTP error! status: ${response.status}`)
-    }
-
-    const result = await response.json()
-    return result.data || result
-  },
-
-  async getVideoCalls(filters?: { userId?: string; groupId?: string; status?: string; callType?: string }) {
-    const token = tokenManager.getToken()
-    if (!token) {
-      throw new Error("Token không tồn tại")
-    }
-
-    const params = new URLSearchParams()
-    if (filters?.userId) params.append("userId", filters.userId)
-    if (filters?.groupId) params.append("groupId", filters.groupId)
-    if (filters?.status) params.append("status", filters.status)
-    if (filters?.callType) params.append("callType", filters.callType)
-
-    const response = await fetch(`${API_BASE}/video-calls?${params.toString()}`, {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
@@ -3693,6 +3754,30 @@ export const api = {
     return result.data || result
   },
 
+  async leaveVideoCall(callId: string) {
+    const token = tokenManager.getToken()
+    if (!token) {
+      throw new Error("Token không tồn tại")
+    }
+
+    const response = await fetch(`${API_BASE}/video-calls/${callId}/leave`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || `HTTP error! status: ${response.status}`)
+    }
+
+    const result = await response.json()
+    return result.data || result
+  },
+
   async getStunConfig() {
     const token = tokenManager.getToken()
     if (!token) {
@@ -3709,6 +3794,65 @@ export const api = {
 
     if (!response.ok) {
       const error = await response.json()
+      throw new Error(error.message || `HTTP error! status: ${response.status}`)
+    }
+
+    const result = await response.json()
+    return result.data || result
+  },
+
+  // Video Calling
+  async createVideoCall(data: {
+    receiverId?: string
+    groupId?: string
+    participantIds?: string[]
+    type: "video" | "audio"
+  }) {
+    const token = tokenManager.getToken()
+    if (!token) throw new Error("Token không tồn tại")
+
+    const payload: any = {
+      participantIds: data.participantIds || (data.receiverId ? [data.receiverId] : []),
+    }
+
+    if (data.groupId) {
+      payload.groupId = data.groupId
+    }
+
+    const response = await fetch(`${API_BASE}/video-calls`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.message || `HTTP error! status: ${response.status}`)
+    }
+
+    const result = await response.json()
+    return result.data || result
+  },
+
+  async getVideoCallToken(callId: string) {
+    const token = tokenManager.getToken()
+    if (!token) throw new Error("Token không tồn tại")
+
+    const response = await fetch(`${API_BASE}/video-calls/${callId}/token`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
       throw new Error(error.message || `HTTP error! status: ${response.status}`)
     }
 

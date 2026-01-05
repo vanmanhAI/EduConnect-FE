@@ -42,6 +42,11 @@ class SoundManager {
     const ctx = this.initAudioContext()
     if (!ctx || !this.config.enabled) return
 
+    // Resume context if suspended (browser autoplay policy)
+    if (ctx.state === "suspended") {
+      ctx.resume().catch((e) => console.warn("AudioContext resume failed:", e))
+    }
+
     try {
       const oscillator = ctx.createOscillator()
       const gainNode = ctx.createGain()

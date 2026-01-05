@@ -85,7 +85,12 @@ export const NotificationCenter = () => {
 
     // Ưu tiên actionUrl nếu có
     if (notification.actionUrl) {
-      targetUrl = notification.actionUrl
+      if (notification.actionUrl.startsWith("/chat/") && notification.actionUrl.split("/").length === 3) {
+        const conversationId = notification.actionUrl.split("/")[2]
+        targetUrl = `/chat?conversationId=${conversationId}`
+      } else {
+        targetUrl = notification.actionUrl
+      }
     } else {
       // Fallback logic theo từng type
       switch (notification.type) {
@@ -145,12 +150,12 @@ export const NotificationCenter = () => {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative hover:bg-educonnect-primary/10">
-          <Bell className="h-5 w-5" />
+        <Button variant="ghost" size="icon" className="relative h-8 w-8 sm:h-9 sm:w-9 hover:bg-educonnect-primary/10">
+          <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
           {unreadCount > 0 && (
             <Badge
               variant="destructive"
-              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+              className="absolute -top-0.5 -right-0.5 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center p-0 text-[10px] sm:text-xs"
             >
               {unreadCount > 9 ? "9+" : unreadCount}
             </Badge>
