@@ -18,6 +18,7 @@ export default function FeedPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [trendingPosts, setTrendingPosts] = useState<Post[]>([])
   const [followingPosts, setFollowingPosts] = useState<Post[]>([])
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("all")
@@ -65,6 +66,8 @@ export default function FeedPage() {
 
     loadPosts()
   }, [activeTab])
+
+  // Load trending tags
 
   const handleLoadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return

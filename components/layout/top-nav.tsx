@@ -81,7 +81,7 @@ export function TopNav({ onMenuClick }: TopNavProps) {
               onClick={() => setSearchOpen(true)}
             >
               <Search className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-              <span className="hidden md:inline truncate">Tìm kiếm bài viết, nhóm, người dùng...</span>
+              <span className="hidden md:inline truncate">Tìm kiếm bài viết</span>
               <span className="hidden sm:inline md:hidden truncate">Tìm kiếm...</span>
               <kbd className="pointer-events-none ml-auto hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 md:flex flex-shrink-0">
                 <span className="text-xs">⌘</span>K

@@ -3953,4 +3953,38 @@ export const api = {
     const result = await response.json()
     return result.data || result
   },
+
+  // Tags
+  async getTrendingTags(limit: number = 15): Promise<
+    {
+      id: string
+      name: string
+      usageCount: number
+      postCount: number
+      groupCount: number
+      score: number
+    }[]
+  > {
+    const token = tokenManager.getToken()
+    const url = new URL(`${API_BASE}/tags/trending`)
+    url.searchParams.set("limit", String(limit))
+
+    const res = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      cache: "no-store",
+    })
+
+    const data = await res.json()
+    console.log("getTrendingTags API response:", data)
+
+    if (!res.ok) {
+      throw new Error((data && data.message) || "Lấy danh sách thẻ thịnh hành thất bại")
+    }
+
+    return data.data || []
+  },
 }

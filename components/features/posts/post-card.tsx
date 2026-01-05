@@ -472,7 +472,7 @@ export function PostCard({
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle>Xác nhận xóa bài viết</AlertDialogTitle>
             <AlertDialogDescription>
