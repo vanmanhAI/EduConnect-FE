@@ -13,6 +13,15 @@ import { AvatarWithStatus } from "@/components/ui/avatar-with-status"
 import { api } from "@/lib/api"
 import type { User, Group } from "@/types"
 
+interface TrendingTag {
+  id: string
+  name: string
+  usageCount: number
+  postCount: number
+  groupCount: number
+  score: number
+}
+
 interface RightSidebarProps {
   children?: React.ReactNode
 }
@@ -20,26 +29,28 @@ interface RightSidebarProps {
 export function RightSidebar({ children }: RightSidebarProps) {
   const [suggestedUsers, setSuggestedUsers] = useState<User[]>([])
   const [suggestedGroups, setSuggestedGroups] = useState<Group[]>([])
-  const [trendingTags] = useState([
-    { name: "javascript", count: 234 },
-    { name: "react", count: 189 },
-    { name: "typescript", count: 156 },
-    { name: "nextjs", count: 134 },
-    { name: "tailwind", count: 98 },
-  ])
+  const [trendingTags, setTrendingTags] = useState<TrendingTag[]>([])
+  const [showAllTags, setShowAllTags] = useState(false)
 
   useEffect(() => {
     const loadSuggestions = async () => {
       try {
-        const [users, groupsResult] = await Promise.all([api.getUsers(), api.getGroups(1, 3)])
+        const [users, groupsResult, tags] = await Promise.all([
+          api.getUsers(),
+          api.getGroups(1, 3),
+          api.getTrendingTags(15),
+        ])
         setSuggestedUsers(users.slice(0, 3))
         setSuggestedGroups(groupsResult.groups)
+        setTrendingTags(tags)
       } catch (error) {
         console.error("Failed to load suggestions:", error)
       }
     }
     loadSuggestions()
   }, [])
+
+  const displayedTags = showAllTags ? trendingTags : trendingTags.slice(0, 5)
 
   return (
     <aside className="fixed top-16 right-0 z-30 hidden h-[calc(100vh-4rem)] w-80 custom-scrollbar border-l bg-background p-6 lg:block">
@@ -55,23 +66,28 @@ export function RightSidebar({ children }: RightSidebarProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {trendingTags.map((tag) => (
+            {displayedTags.map((tag) => (
               <Link
-                key={tag.name}
-                href={`/search?q=${encodeURIComponent(`#${tag.name}`)}`}
+                key={tag.id}
+                href={`/search?q=${encodeURIComponent(tag.name)}`}
                 className="flex items-center justify-between p-2 rounded-lg hover:bg-accent transition-colors"
               >
                 <div className="flex items-center space-x-2">
                   <Badge variant="secondary" className="text-xs">
-                    #{tag.name}
+                    {tag.name}
                   </Badge>
                 </div>
-                <span className="text-xs text-muted-foreground">{tag.count} bài viết</span>
+                <span className="text-xs text-muted-foreground">{tag.postCount} bài viết</span>
               </Link>
             ))}
-            <Button variant="ghost" size="sm" className="w-full mt-2" asChild>
-              <Link href="/search">Xem thêm</Link>
-            </Button>
+            {trendingTags.length > 5 && (
+              <Button variant="ghost" size="sm" className="w-full mt-2" onClick={() => setShowAllTags(!showAllTags)}>
+                {showAllTags ? "Thu gọn" : `Xem thêm (${trendingTags.length - 5})`}
+              </Button>
+            )}
+            {trendingTags.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-2">Chưa có thẻ thịnh hành</p>
+            )}
           </CardContent>
         </Card>
 

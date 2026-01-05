@@ -69,17 +69,17 @@ export default function BadgesPage() {
         const summaryData = await api.getBadgeSummary()
         setSummary(summaryData)
 
-        // Load badges
-        const data = await api.getBadges()
+        // Map tab to API status
+        const statusMap: Record<string, "all" | "earned" | "unearned"> = {
+          all: "all",
+          earned: "earned",
+          available: "unearned",
+        }
+        const status = statusMap[activeTab] || "all"
 
-        // Mock: Add earned status and progress to some badges
-        const badgesWithProgress = data.map((badge, index) => ({
-          ...badge,
-          earnedAt: index < summaryData.earnedBadges ? new Date() : undefined,
-          progress: index < summaryData.earnedBadges ? 100 : Math.floor(Math.random() * 80),
-        }))
-
-        setBadges(badgesWithProgress)
+        // Load badges with correct status filter
+        const data = await api.getBadges(status)
+        setBadges(data)
       } catch (err) {
         console.error("Error loading badges:", err)
         setError("Không thể tải danh sách huy hiệu. Vui lòng thử lại.")
@@ -89,7 +89,7 @@ export default function BadgesPage() {
     }
 
     loadBadgesAndSummary()
-  }, [])
+  }, [activeTab])
 
   const handleRetry = () => {
     setError(null)
@@ -110,7 +110,7 @@ export default function BadgesPage() {
 
         setBadges(data)
       } catch (err) {
-        setError("Кхông thể tải danh sách huy hiệu. Vui lòng thử lại.")
+        setError("Không thể tải danh sách huy hiệu. Vui lòng thử lại.")
       } finally {
         setLoading(false)
       }

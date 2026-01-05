@@ -577,10 +577,6 @@ export default function ProfilePage() {
                     <span className="text-muted-foreground">bài viết</span>
                   </div>
                   <div className="flex items-center space-x-1">
-                    <span className="font-semibold">{formatNumber(user.groupsCount || 0)}</span>
-                    <span className="text-muted-foreground">nhóm</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
                     <Trophy className="h-4 w-4 text-educonnect-primary" />
                     <span className="font-semibold text-educonnect-primary">{formatNumber(user.points)} điểm</span>
                   </div>
