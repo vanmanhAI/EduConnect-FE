@@ -22,7 +22,7 @@ export function AppShell({ children, showRightSidebar = true, rightSidebarConten
     <div className="min-h-screen bg-background overflow-x-hidden">
       <TopNav onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
 
-      <div className="flex min-w-0">
+      <div className="flex min-w-0 pt-16">
         <LeftSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         <main className="flex-1 lg:ml-64 min-w-0 overflow-x-hidden">
