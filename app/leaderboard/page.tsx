@@ -180,33 +180,6 @@ export default function LeaderboardPage() {
 
   const rightSidebarContent = (
     <div className="space-y-6">
-      {/* Current User Rank */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Thứ hạng của bạn</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Tuần này:</span>
-            <div className="flex items-center space-x-2">
-              <Badge className="bg-educonnect-primary">#15</Badge>
-              <TrendingUp className="h-4 w-4 text-green-500" />
-            </div>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Tháng này:</span>
-            <div className="flex items-center space-x-2">
-              <Badge variant="secondary">#23</Badge>
-              <TrendingDown className="h-4 w-4 text-red-500" />
-            </div>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Tổng điểm:</span>
-            <span className="font-semibold text-educonnect-primary">1,250</span>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Quick Stats */}
       <Card>
         <CardHeader className="pb-3">
