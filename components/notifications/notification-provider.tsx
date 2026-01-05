@@ -261,11 +261,20 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
 
       // Ưu tiên actionUrl nếu có
       if (notification.actionUrl) {
-        targetUrl = notification.actionUrl
+        // Fix cho chat URL từ backend (/chat/id -> /chat?conversationId=id)
+        if (notification.actionUrl.startsWith("/chat/") && notification.actionUrl.split("/").length === 3) {
+          const conversationId = notification.actionUrl.split("/")[2]
+          targetUrl = `/chat?conversationId=${conversationId}`
+        } else {
+          targetUrl = notification.actionUrl
+        }
       } else {
         // Fallback logic theo từng type
         switch (notification.type) {
           case "message":
+            // Nếu notification có context conversationId (thường backend sẽ gửi kèm hoặc trong data custom)
+            // Tuy nhiên type NotificationPayload hiện tại chưa chắc có.
+            // Nhưng nếu fallback về /chat cũng tạm ổn.
             targetUrl = "/chat"
             break
 

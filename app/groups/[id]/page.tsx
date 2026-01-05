@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { Users, Settings, Share2, MoreHorizontal, Send, Smile, Paperclip, Trash2, Loader2 } from "lucide-react"
+import { Users, Settings, Share2, MoreHorizontal, Trash2, Loader2, MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -32,9 +32,7 @@ import { useToast } from "@/hooks/use-toast"
 import { api } from "@/lib/api"
 import { tokenManager } from "@/lib/auth"
 import { formatNumber } from "@/lib/utils"
-import { formatDistanceToNow } from "date-fns"
-import { vi } from "date-fns/locale"
-import type { Group, Post, User, ChatMessage } from "@/types"
+import type { Group, Post, User } from "@/types"
 
 export default function GroupDetailPage() {
   const { toast } = useToast()
@@ -45,8 +43,7 @@ export default function GroupDetailPage() {
   const [group, setGroup] = useState<Group | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [members, setMembers] = useState<User[]>([])
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [newMessage, setNewMessage] = useState("")
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("posts")
@@ -106,15 +103,6 @@ export default function GroupDetailPage() {
           console.error("Failed to load group posts:", err)
           setPosts([])
           setPostsHasMore(false)
-        }
-
-        // Load messages (non-blocking)
-        try {
-          const groupMessages = await api.getChatMessages(`group-${groupId}`)
-          setMessages(groupMessages)
-        } catch (err) {
-          console.error("Failed to load group messages:", err)
-          setMessages([])
         }
       } catch (err: any) {
         console.error("Failed to load group data:", err)
@@ -241,39 +229,6 @@ export default function GroupDetailPage() {
         title: "Lỗi",
         description: error.message || "Không thể thực hiện thao tác. Vui lòng thử lại.",
       })
-    }
-  }
-
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !group) return
-
-    const message: Omit<ChatMessage, "id"> = {
-      threadId: `group-${group.id}`,
-      senderId: "current-user",
-      sender: { id: "current-user", displayName: "Bạn" } as any,
-      conversationId: `group-${group.id}`,
-      content: newMessage.trim(),
-      timestamp: new Date(),
-      createdAt: new Date(),
-      type: "text",
-      isRead: true,
-    }
-
-    try {
-      await api.sendMessage(message)
-      setNewMessage("")
-      // Reload messages
-      const groupMessages = await api.getChatMessages(`group-${group.id}`)
-      setMessages(groupMessages)
-    } catch (err) {
-      console.error("Failed to send message:", err)
-    }
-  }
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage()
     }
   }
 
@@ -490,6 +445,13 @@ export default function GroupDetailPage() {
                 {getJoinButtonContent()}
               </Button>
 
+              {group.joinStatus === "joined" && (
+                <Button variant="outline" onClick={() => router.push(`/chat?groupId=${group.id}`)}>
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  Nhắn tin
+                </Button>
+              )}
+
               <Button variant="outline" size="icon">
                 <Share2 className="h-4 w-4" />
               </Button>
@@ -537,10 +499,9 @@ export default function GroupDetailPage() {
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full max-w-md grid-cols-4">
+            <TabsList className="grid w-full max-w-md grid-cols-3">
               <TabsTrigger value="posts">Bài viết</TabsTrigger>
               <TabsTrigger value="members">Thành viên</TabsTrigger>
-              <TabsTrigger value="chat">Trò chuyện</TabsTrigger>
               <TabsTrigger value="files">Tệp tin</TabsTrigger>
             </TabsList>
 
@@ -625,87 +586,6 @@ export default function GroupDetailPage() {
                   ))}
                 </div>
               )}
-            </TabsContent>
-
-            <TabsContent value="chat" className="space-y-6 mt-6">
-              <div className="border rounded-lg h-[500px] flex flex-col">
-                {/* Chat Header */}
-                <div className="p-4 border-b">
-                  <h3 className="font-semibold">Trò chuyện nhóm</h3>
-                  <p className="text-sm text-muted-foreground">{members.length} thành viên</p>
-                </div>
-
-                {/* Messages */}
-                <ScrollArea className="flex-1 p-4">
-                  <div className="space-y-4">
-                    {messages.length === 0 ? (
-                      <div className="text-center py-8">
-                        <p className="text-muted-foreground">Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò chuyện!</p>
-                      </div>
-                    ) : (
-                      messages.map((message) => {
-                        const isCurrentUser = message.senderId === "current-user"
-                        const sender = members.find((m) => m.id === message.senderId) || members[0]
-
-                        return (
-                          <div key={message.id} className={`flex ${isCurrentUser ? "justify-end" : "justify-start"}`}>
-                            <div className={`flex gap-2 max-w-[70%] ${isCurrentUser ? "flex-row-reverse" : ""}`}>
-                              {!isCurrentUser && (
-                                <Avatar className="h-6 w-6 mt-1">
-                                  <AvatarImage src={sender?.avatar || "/placeholder.svg"} />
-                                  <AvatarFallback className="text-xs">{sender?.displayName.charAt(0)}</AvatarFallback>
-                                </Avatar>
-                              )}
-                              <div
-                                className={`px-3 py-2 rounded-lg ${
-                                  isCurrentUser ? "bg-primary text-primary-foreground" : "bg-muted"
-                                }`}
-                              >
-                                {!isCurrentUser && <p className="text-xs font-medium mb-1">{sender?.displayName}</p>}
-                                <p className="text-sm">{message.content}</p>
-                                <p
-                                  className={`text-xs mt-1 ${
-                                    isCurrentUser ? "text-primary-foreground/70" : "text-muted-foreground"
-                                  }`}
-                                >
-                                  {formatDistanceToNow(new Date(message.timestamp), {
-                                    addSuffix: true,
-                                    locale: vi,
-                                  })}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })
-                    )}
-                  </div>
-                </ScrollArea>
-
-                {/* Message Input */}
-                <div className="p-4 border-t">
-                  <div className="flex items-end gap-2">
-                    <Button size="sm" variant="ghost">
-                      <Paperclip className="h-4 w-4" />
-                    </Button>
-                    <div className="flex-1 relative">
-                      <Input
-                        placeholder="Nhập tin nhắn..."
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        onKeyPress={handleKeyPress}
-                        className="pr-12"
-                      />
-                      <Button size="sm" variant="ghost" className="absolute right-1 top-1/2 transform -translate-y-1/2">
-                        <Smile className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <Button onClick={sendMessage} disabled={!newMessage.trim()} size="sm">
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
             </TabsContent>
 
             <TabsContent value="files" className="space-y-6 mt-6">

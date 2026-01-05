@@ -19,112 +19,85 @@ const getSocketUrl = (): string => {
 
 const SOCKET_URL = getSocketUrl()
 
-let socket: Socket | null = null
+let videoSocket: Socket | null = null
 
-// Client -> Server events
-export interface VideoCallSocketClientEvents {
-  join_call_room: (data: { callId: string }) => void
-  leave_call_room: (data: { callId: string }) => void
-  call_invite: (data: { callId: string; targetUserId: string }) => void
-  call_accept: (data: { callId: string }) => void
-  call_reject: (data: { callId: string }) => void
-  offer: (data: { callId: string; targetUserId: string; offer: RTCSessionDescriptionInit }) => void
-  answer: (data: { callId: string; targetUserId: string; answer: RTCSessionDescriptionInit }) => void
-  ice_candidate: (data: { callId: string; targetUserId: string; candidate: RTCIceCandidateInit }) => void
-  call_end: (data: { callId: string }) => void
-  toggle_audio: (data: { callId: string; enabled: boolean }) => void
-  toggle_video: (data: { callId: string; enabled: boolean }) => void
+export interface VideoSocketEvents {
+  // Server -> Client
+  incoming_call: (data: {
+    callId: string
+    roomId: string
+    caller: {
+      id: string
+      displayName?: string
+      avatar?: string
+    }
+    callType: "1-1" | "group"
+    startTime: string
+  }) => void
+
+  // Client -> Server (if any, e.g. accept_call signaling?)
+  // For now LiveKit handles the actual call, but we might send 'accept' status to DB via API
 }
 
-// Server -> Client events
-export interface VideoCallSocketServerEvents {
-  joined_call_room: (data: { callId: string; roomId: string; timestamp: Date }) => void
-  left_call_room: (data: { callId: string; roomId: string; timestamp: Date }) => void
-  participant_joined: (data: { callId: string; userId: string; roomId: string; timestamp: Date }) => void
-  participant_left: (data: { callId: string; userId: string; roomId: string; timestamp: Date }) => void
-  call_invite_received: (data: { callId: string; fromUserId: string; timestamp: Date }) => void
-  call_accepted: (data: { callId: string; userId: string; roomId: string; timestamp: Date }) => void
-  call_rejected: (data: { callId: string; userId: string; roomId: string; timestamp: Date }) => void
-  call_ended: (data: { callId: string; endedBy: string; roomId: string; timestamp: Date }) => void
-  offer: (data: { callId: string; fromUserId: string; offer: RTCSessionDescriptionInit; timestamp: Date }) => void
-  answer: (data: { callId: string; fromUserId: string; answer: RTCSessionDescriptionInit; timestamp: Date }) => void
-  ice_candidate: (data: { callId: string; fromUserId: string; candidate: RTCIceCandidateInit; timestamp: Date }) => void
-  audio_toggled: (data: { callId: string; userId: string; enabled: boolean; timestamp: Date }) => void
-  video_toggled: (data: { callId: string; userId: string; enabled: boolean; timestamp: Date }) => void
-  error: (error: { event: string; message: string }) => void
-}
-
-// Combined interface for Socket.IO typing
-// Note: answer, offer, and ice_candidate exist in both client and server events with different signatures
-// We use server event signatures (with fromUserId) for socket.on() typing
-// Client events (with targetUserId) are used for socket.emit() typing separately
-export type VideoCallSocketEvents = VideoCallSocketServerEvents &
-  Omit<VideoCallSocketClientEvents, "offer" | "answer" | "ice_candidate">
-
-/**
- * Khởi tạo socket connection cho video calls
- */
-export const initVideoCallSocket = (token?: string): Socket | null => {
-  // Use existing connected socket
-  if (socket && socket.connected) {
-    return socket
+export const initVideoSocket = (token?: string): Socket | null => {
+  if (videoSocket && videoSocket.connected) {
+    return videoSocket
   }
 
-  // Force new token check
+  if (videoSocket && !videoSocket.connected) {
+    videoSocket.disconnect()
+  }
+
   const authToken = token || tokenManager.getToken()
 
   if (!authToken) {
-    console.warn("⚠️ Cannot init video socket: No token available")
     return null
   }
 
-  // If socket exists but disconnected, try to reconnect with new token
-  if (socket) {
-    socket.auth = { token: authToken }
-    socket.connect()
-    return socket
-  }
-
-  // Create new socket
-  socket = io(`${SOCKET_URL}/video-calls`, {
+  videoSocket = io(`${SOCKET_URL}/video-calls`, {
     auth: {
       token: authToken,
     },
     transports: ["websocket", "polling"],
     reconnection: true,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
-    reconnectionAttempts: 10,
   })
 
-  socket.on("connect", () => {
-    console.log("✅ Video call socket connected:", socket?.id)
+  videoSocket.on("connect", () => {
+    console.log("📹 Video Socket connected:", videoSocket?.id)
   })
 
-  socket.on("disconnect", (reason) => {
-    console.log("❌ Video call socket disconnected:", reason)
+  videoSocket.on("connect_error", (err) => {
+    console.error("📹 Video Socket connection error:", err.message)
   })
 
-  socket.on("connect_error", (error) => {
-    console.error("❌ Video call socket connection error:", error.message)
+  videoSocket.on("disconnect", (reason) => {
+    console.log("📹 Video Socket disconnected:", reason)
   })
 
-  return socket
+  return videoSocket
 }
 
-/**
- * Lấy socket instance hiện tại
- */
-export const getVideoCallSocket = (): Socket | null => {
-  return socket
+export const getVideoSocket = (): Socket | null => {
+  return videoSocket
 }
 
-/**
- * Disconnect socket
- */
-export const disconnectVideoCallSocket = (): void => {
-  if (socket) {
-    socket.disconnect()
-    socket = null
+export const disconnectVideoSocket = () => {
+  if (videoSocket) {
+    videoSocket.disconnect()
+    videoSocket = null
+  }
+}
+
+export const onVideoEvent = <K extends keyof VideoSocketEvents>(event: K, callback: VideoSocketEvents[K]) => {
+  if (!videoSocket) {
+    return () => {}
+  }
+
+  videoSocket.on(event as string, callback as any)
+
+  return () => {
+    if (videoSocket) {
+      videoSocket.off(event as string, callback as any)
+    }
   }
 }

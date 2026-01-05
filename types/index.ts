@@ -156,6 +156,8 @@ export interface ChatMessage {
   timestamp: Date
   createdAt: Date
   isRead: boolean
+  replyToId?: string
+  replyTo?: ChatMessage
 }
 
 export interface ChatThreadParticipant {
@@ -177,6 +179,8 @@ export interface ChatThread {
   }
   unreadCount: number
   type: "direct" | "group"
+  groupId?: string
+  name?: string
 }
 
 export interface Conversation {

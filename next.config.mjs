@@ -9,6 +9,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  allowedDevOrigins: ['misc-genetic-rpm-omaha.trycloudflare.com'],
 }
 
 export default nextConfig

@@ -16,7 +16,7 @@ const navigation = [
   { name: "Bảng tin", href: "/feed", icon: PenSquare },
   { name: "Nhóm", href: "/groups", icon: Users },
   { name: "Tin nhắn", href: "/messages", icon: MessageSquare },
-  { name: "Video", href: "/video", icon: Video },
+
   { name: "Mọi người", href: "/people", icon: UserPlus },
   { name: "Bảng xếp hạng", href: "/leaderboard", icon: Trophy },
   { name: "Huy hiệu", href: "/badges", icon: Award },
@@ -29,12 +29,13 @@ export function LeftSidebar({ isOpen, onClose }: LeftSidebarProps) {
   return (
     <>
       {/* Mobile overlay */}
-      {isOpen && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={onClose} />}
+      {isOpen && <div className="fixed inset-0 z-[55] bg-black/50 lg:hidden" onClick={onClose} />}
 
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed top-16 left-0 z-50 h-[calc(100vh-4rem)] w-64 transform bg-background border-r transition-transform duration-200 ease-in-out lg:translate-x-0",
+          "fixed left-0 z-[60] w-64 transform bg-background border-r transition-transform duration-200 ease-in-out",
+          "top-0 h-screen lg:top-16 lg:h-[calc(100vh-4rem)] lg:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
