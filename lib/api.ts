@@ -9,6 +9,7 @@ import type {
   ChatThread,
   Conversation,
   Badge,
+  BadgeSummary,
   LeaderboardEntry,
   Notification,
   SearchResult,
