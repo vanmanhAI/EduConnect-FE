@@ -87,7 +87,9 @@ export function EditGroupDialog({ open, onOpenChange, group, onSave }: EditGroup
     try {
       setError(null)
       const result = await upload(file)
-      setAvatar(result.url)
+      if (result) {
+        setAvatar(result.url)
+      }
     } catch (err: any) {
       setError(err.message || "Failed to upload image")
     }
@@ -120,7 +122,7 @@ export function EditGroupDialog({ open, onOpenChange, group, onSave }: EditGroup
         name: name.trim(),
         description: description.trim(),
         tags,
-        avatar,
+        avatar: avatar ?? undefined,
       })
       onOpenChange(false)
     } catch (err: any) {

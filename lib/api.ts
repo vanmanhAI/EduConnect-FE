@@ -681,6 +681,93 @@ export const api = {
     }
   },
 
+  async searchPosts(
+    keyword: string,
+    page: number = 1,
+    limit: number = 10,
+    decayFactor: number = 1
+  ): Promise<{ posts: Post[]; hasMore: boolean }> {
+    const token = tokenManager.getToken()
+    const url = new URL(`${API_BASE}/posts/search`)
+    url.searchParams.set("keyword", keyword)
+    url.searchParams.set("page", String(page))
+    url.searchParams.set("limit", String(limit))
+    url.searchParams.set("decayFactor", String(decayFactor))
+
+    const res = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      cache: "no-store",
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error((data && (data.message || data.error)) || "Tìm kiếm bài viết thất bại")
+    }
+
+    // Check if data structure is valid
+    if (!data.data || !data.data.items || !Array.isArray(data.data.items)) {
+      console.warn("Invalid search posts data structure:", data)
+      return {
+        posts: [],
+        hasMore: false,
+      }
+    }
+
+    // Transform API data to match Post interface
+    const posts: Post[] = data.data.items.map((item: any) => ({
+      id: item.id,
+      title: item.title,
+      content: item.content,
+      slug: item.slug || undefined,
+      excerpt: item.excerpt || undefined,
+      authorId: item.author.id,
+      author: {
+        id: item.author.id,
+        username: item.author.username,
+        displayName: item.author.displayName,
+        avatar: item.author.avatar,
+        email: "",
+        points: 0,
+        level: 1,
+        badges: [],
+        followers: 0,
+        following: 0,
+        joinedAt: new Date(),
+      },
+      groupId: item.group?.id,
+      group: item.group
+        ? {
+            id: item.group.id,
+            name: item.group.name,
+            slug: item.group.slug,
+            description: "",
+            memberCount: 0,
+            postCount: 0,
+            tag: [],
+            tags: [],
+            createdAt: new Date(),
+          }
+        : undefined,
+      tags: item.tags?.map((tag: any) => tag.name || tag) || [],
+      reactions: item.reactions || [],
+      likeCount: item.likeCount || 0,
+      commentCount: item.commentCount || 0,
+      isLiked: item.isLiked || false,
+      attachments: [],
+      createdAt: new Date(item.createdAt),
+      updatedAt: new Date(item.updatedAt),
+    }))
+
+    return {
+      posts,
+      hasMore: data.data.hasMore || false,
+    }
+  },
+
   async getFollowers(userId: string): Promise<User[]> {
     const token = tokenManager.getToken()
     const res = await fetch(`${API_BASE}/users/${userId}/followers`, {
