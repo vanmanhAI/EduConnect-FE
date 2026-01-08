@@ -24,7 +24,7 @@ export default function FeedPage() {
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState("all")
+  const [activeTab, setActiveTab] = useState("trending")
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -59,14 +59,8 @@ export default function FeedPage() {
             setFollowingHasMore(result.hasMore)
             setFollowingPage(1)
           }
-        } else if (activeTab === "all") {
-          let result
-          if (user) {
-            result = await api.getFeedPosts(1, 10, 1)
-          } else {
-            // Guest user: use trending posts as "all" (public) feed
-            result = await api.getTrendingPosts(1, 10, 1)
-          }
+        } else if (activeTab === "all" && user) {
+          const result = await api.getFeedPosts(1, 10, 1)
           setPosts(result.posts)
           setHasMore(result.hasMore)
           setPage(1)
@@ -85,17 +79,12 @@ export default function FeedPage() {
   // Load trending tags
 
   const handleLoadMore = useCallback(async () => {
-    if (loadingMore || !hasMore) return
+    if (loadingMore || !hasMore || !user) return
 
     try {
       setLoadingMore(true)
       const nextPage = page + 1
-      let result
-      if (user) {
-        result = await api.getFeedPosts(nextPage, 10, 1)
-      } else {
-        result = await api.getTrendingPosts(nextPage, 10, 1)
-      }
+      const result = await api.getFeedPosts(nextPage, 10, 1)
       setPosts((prev) => [...prev, ...result.posts])
       setHasMore(result.hasMore)
       setPage(nextPage)
@@ -195,13 +184,8 @@ export default function FeedPage() {
             setFollowingHasMore(result.hasMore)
             setFollowingPage(1)
           }
-        } else {
-          let result
-          if (user) {
-            result = await api.getFeedPosts(1, 10, 1)
-          } else {
-            result = await api.getTrendingPosts(1, 10, 1)
-          }
+        } else if (activeTab === "all" && user) {
+          const result = await api.getFeedPosts(1, 10, 1)
           setPosts(result.posts)
           setHasMore(result.hasMore)
           setPage(1)
@@ -217,13 +201,8 @@ export default function FeedPage() {
 
   const handleReloadPosts = async () => {
     try {
-      if (activeTab === "all") {
-        let result
-        if (user) {
-          result = await api.getFeedPosts(1, 10, 1)
-        } else {
-          result = await api.getTrendingPosts(1, 10, 1)
-        }
+      if (activeTab === "all" && user) {
+        const result = await api.getFeedPosts(1, 10, 1)
         setPosts(result.posts)
         setHasMore(result.hasMore)
         setPage(1)
@@ -290,10 +269,10 @@ export default function FeedPage() {
         {/* Filters */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="flex items-center justify-between px-0">
-            <TabsList className={`grid w-full max-w-md ${user ? "grid-cols-3" : "grid-cols-2"}`}>
-              <TabsTrigger value="all">Tất cả</TabsTrigger>
-              {user && <TabsTrigger value="following">Đang theo dõi</TabsTrigger>}
+            <TabsList className={`grid w-full max-w-md ${user ? "grid-cols-3" : "grid-cols-1"}`}>
               <TabsTrigger value="trending">Thịnh hành</TabsTrigger>
+              {user && <TabsTrigger value="following">Đang theo dõi</TabsTrigger>}
+              {user && <TabsTrigger value="all">Tất cả</TabsTrigger>}
             </TabsList>
           </div>
 

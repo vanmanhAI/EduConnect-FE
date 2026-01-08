@@ -418,7 +418,7 @@ export function PostCard({
                 },
               }}
             >
-              {cleanContent}
+              {cleanContent.replace(/\n/g, "  \n")}
             </ReactMarkdown>
           </div>
 

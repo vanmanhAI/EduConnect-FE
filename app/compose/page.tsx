@@ -122,7 +122,7 @@ function ComposePageContent() {
       })
 
       if (publish) {
-        router.push("/feed")
+        router.push("/profile")
       }
     } catch (error: any) {
       console.error("Failed to save post:", error)
