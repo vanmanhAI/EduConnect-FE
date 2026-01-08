@@ -455,21 +455,7 @@ export default function GroupsPage() {
     }
   }
 
-  const rightSidebarContent = (
-    <div className="space-y-6">
-      {/* Quick Stats */}
-      <div className="space-y-2 text-sm text-muted-foreground">
-        <div className="flex justify-between">
-          <span>Tổng số nhóm:</span>
-          <span className="font-medium">{groups.length}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Đã tham gia:</span>
-          <span className="font-medium">{user ? groups.filter((g) => g.joinStatus === "joined").length : 0}</span>
-        </div>
-      </div>
-    </div>
-  )
+  const rightSidebarContent = <div className="space-y-6">{/* Sidebar content removed as per user request */}</div>
 
   return (
     <AppShell rightSidebarContent={rightSidebarContent}>

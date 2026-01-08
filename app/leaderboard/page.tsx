@@ -180,43 +180,6 @@ export default function LeaderboardPage() {
 
   const rightSidebarContent = (
     <div className="space-y-6">
-      {/* Quick Stats */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Thống kê</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">
-              {activeType === "individual" ? "Tổng thành viên:" : "Tổng nhóm:"}
-            </span>
-            <span className="font-medium">
-              {activeType === "individual" ? leaderboard.length : groupLeaderboard.length}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Hoạt động tuần này:</span>
-            <span className="font-medium">
-              {activeType === "individual"
-                ? Math.floor(leaderboard.length * 0.7)
-                : Math.floor(groupLeaderboard.length * 0.7)}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Điểm trung bình:</span>
-            <span className="font-medium">
-              {activeType === "individual"
-                ? leaderboard.length > 0
-                  ? Math.floor(leaderboard.reduce((sum, entry) => sum + entry.points, 0) / leaderboard.length)
-                  : 0
-                : groupLeaderboard.length > 0
-                  ? Math.floor(groupLeaderboard.reduce((sum, entry) => sum + entry.points, 0) / groupLeaderboard.length)
-                  : 0}
-            </span>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Achievement Tips */}
       <Card>
         <CardHeader className="pb-3">

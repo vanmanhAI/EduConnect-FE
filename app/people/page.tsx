@@ -223,28 +223,7 @@ export default function PeoplePage() {
     return result
   }
 
-  const rightSidebarContent = (
-    <div className="space-y-6">
-      {/* Quick Stats */}
-      <div className="space-y-2 text-sm">
-        <h3 className="font-semibold mb-3">Thống kê</h3>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Tổng thành viên:</span>
-          <span className="font-medium">{users.length}</span>
-        </div>
-        {user && (
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Đang theo dõi:</span>
-            <span className="font-medium">{followingUsers.length}</span>
-          </div>
-        )}
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Hoạt động hôm nay:</span>
-          <span className="font-medium">{Math.floor(users.length * 0.3)}</span>
-        </div>
-      </div>
-    </div>
-  )
+  const rightSidebarContent = <div className="space-y-6">{/* Sidebar content removed as per user request */}</div>
 
   return (
     <AppShell rightSidebarContent={rightSidebarContent}>

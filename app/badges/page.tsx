@@ -45,6 +45,7 @@ const getRarityLabel = (rarity: BadgeType["rarity"]) => {
 }
 
 import { AuthGuard } from "@/components/auth/auth-guard"
+import { useAuth } from "@/contexts/auth-context"
 
 export default function BadgesPage() {
   return (
@@ -55,6 +56,7 @@ export default function BadgesPage() {
 }
 
 function BadgesPageContent() {
+  const { user } = useAuth()
   const [badges, setBadges] = useState<BadgeType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -75,9 +77,11 @@ function BadgesPageContent() {
         setLoading(true)
         setError(null)
 
-        // Load summary from API
-        const summaryData = await api.getBadgeSummary()
-        setSummary(summaryData)
+        // Only load summary if user is logged in
+        if (user) {
+          const summaryData = await api.getBadgeSummary()
+          setSummary(summaryData)
+        }
 
         // Map tab to API status
         const statusMap: Record<string, "all" | "earned" | "unearned"> = {
@@ -99,7 +103,7 @@ function BadgesPageContent() {
     }
 
     loadBadgesAndSummary()
-  }, [activeTab])
+  }, [activeTab, user])
 
   const handleRetry = () => {
     setError(null)
@@ -107,8 +111,10 @@ function BadgesPageContent() {
       try {
         setLoading(true)
 
-        const summaryData = await api.getBadgeSummary()
-        setSummary(summaryData)
+        if (user) {
+          const summaryData = await api.getBadgeSummary()
+          setSummary(summaryData)
+        }
 
         const statusMap: Record<string, "all" | "earned" | "unearned"> = {
           all: "all",
@@ -131,7 +137,7 @@ function BadgesPageContent() {
   const earnedBadges = badges.filter((badge) => badge.isEarned)
   const availableBadges = badges.filter((badge) => !badge.isEarned)
 
-  const rightSidebarContent = (
+  const rightSidebarContent = user ? (
     <div className="space-y-6">
       {/* Progress Overview */}
       <Card>
@@ -209,7 +215,7 @@ function BadgesPageContent() {
         </Card>
       )}
     </div>
-  )
+  ) : undefined
 
   return (
     <AppShell rightSidebarContent={rightSidebarContent}>
