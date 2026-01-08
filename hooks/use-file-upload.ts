@@ -33,6 +33,19 @@ export function useFileUpload(): UseFileUploadReturn {
       setProgress(0)
       setError(null)
 
+      const maxSize = 5 * 1024 * 1024 // 5MB default limit
+      if (file.size > maxSize) {
+        const errorMsg = `Kích thước tập tin quá lớn. Vui lòng chọn tập tin dưới 5MB.`
+        setError(errorMsg)
+        toast({
+          title: "Lỗi tải lên",
+          description: errorMsg,
+          variant: "destructive",
+        })
+        setIsUploading(false)
+        return null
+      }
+
       try {
         const result = await api.uploadFile(file, (percent) => {
           setProgress(percent)

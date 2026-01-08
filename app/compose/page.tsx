@@ -17,11 +17,21 @@ import { useToast } from "@/hooks/use-toast"
 import { useFileUpload } from "@/hooks/use-file-upload"
 import type { Group } from "@/types"
 
+import { AuthGuard } from "@/components/auth/auth-guard"
+
 const DRAFT_TITLE = "educonnect_draft_title"
 const DRAFT_CONTENT = "educonnect_draft_content"
 const DRAFT_GROUP = "educonnect_draft_group"
 
 export default function ComposePage() {
+  return (
+    <AuthGuard>
+      <ComposePageContent />
+    </AuthGuard>
+  )
+}
+
+function ComposePageContent() {
   const { toast } = useToast()
   const router = useRouter()
   const searchParams = useSearchParams()

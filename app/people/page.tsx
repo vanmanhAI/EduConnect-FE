@@ -15,8 +15,10 @@ import { ErrorState } from "@/components/ui/error-state"
 import { api } from "@/lib/api"
 import { debounce } from "@/lib/utils"
 import type { User } from "@/types"
+import { useAuth } from "@/contexts/auth-context"
 
 export default function PeoplePage() {
+  const { user } = useAuth()
   const [users, setUsers] = useState<User[]>([])
   const [filteredUsers, setFilteredUsers] = useState<User[]>([])
   const [followingUsers, setFollowingUsers] = useState<User[]>([])
@@ -28,6 +30,13 @@ export default function PeoplePage() {
   const [hasMore, setHasMore] = useState(false)
   const [page, setPage] = useState(1)
   const [loadingMore, setLoadingMore] = useState(false)
+
+  // Redirect guest from "following" tab
+  useEffect(() => {
+    if (!user && activeTab === "following") {
+      setActiveTab("all")
+    }
+  }, [user, activeTab])
 
   useEffect(() => {
     // Only load initial users if no search query
@@ -53,14 +62,16 @@ export default function PeoplePage() {
   // Load following users when switching to "following" tab
   useEffect(() => {
     if (activeTab === "following") {
+      if (!user) {
+        return
+      }
       const loadFollowingUsers = async () => {
         try {
           setLoading(true)
           setError(null)
-          // Get current user from API
-          const currentUser = await api.getCurrentUser()
-          if (currentUser && currentUser.id) {
-            const following = await api.getFollowing(currentUser.id)
+          // Get current user from API to be sure or use context user id
+          if (user && user.id) {
+            const following = await api.getFollowing(user.id)
             setFollowingUsers(following)
           }
         } catch (err) {
@@ -73,7 +84,7 @@ export default function PeoplePage() {
 
       loadFollowingUsers()
     }
-  }, [activeTab])
+  }, [activeTab, user])
 
   const debouncedSearch = debounce(async (query: string) => {
     try {
@@ -108,11 +119,10 @@ export default function PeoplePage() {
     const loadUsers = async () => {
       try {
         setLoading(true)
-        if (activeTab === "following") {
+        if (activeTab === "following" && user) {
           // Reload following users
-          const currentUser = await api.getCurrentUser()
-          if (currentUser && currentUser.id) {
-            const following = await api.getFollowing(currentUser.id)
+          if (user && user.id) {
+            const following = await api.getFollowing(user.id)
             setFollowingUsers(following)
           }
         } else {
@@ -222,10 +232,12 @@ export default function PeoplePage() {
           <span className="text-muted-foreground">Tổng thành viên:</span>
           <span className="font-medium">{users.length}</span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Đang theo dõi:</span>
-          <span className="font-medium">{followingUsers.length}</span>
-        </div>
+        {user && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Đang theo dõi:</span>
+            <span className="font-medium">{followingUsers.length}</span>
+          </div>
+        )}
         <div className="flex justify-between">
           <span className="text-muted-foreground">Hoạt động hôm nay:</span>
           <span className="font-medium">{Math.floor(users.length * 0.3)}</span>
@@ -275,9 +287,9 @@ export default function PeoplePage() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsList className={`grid w-full max-w-md ${user ? "grid-cols-3" : "grid-cols-2"}`}>
             <TabsTrigger value="all">Tất cả</TabsTrigger>
-            <TabsTrigger value="following">Đang theo dõi</TabsTrigger>
+            {user && <TabsTrigger value="following">Đang theo dõi</TabsTrigger>}
             <TabsTrigger value="popular">Phổ biến</TabsTrigger>
           </TabsList>
 

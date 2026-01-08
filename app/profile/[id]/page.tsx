@@ -21,6 +21,7 @@ import { api } from "@/lib/api"
 import { useAuth } from "@/contexts/auth-context"
 import { formatNumber, formatDate } from "@/lib/utils"
 import type { User, Post, Group, Badge as BadgeType } from "@/types"
+import { LoginPromptDialog } from "@/components/auth/login-prompt-dialog"
 
 export default function ProfilePage() {
   const params = useParams()
@@ -47,8 +48,29 @@ export default function ProfilePage() {
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false)
+  const [loginPromptAction, setLoginPromptAction] = useState<"follow" | "message">("follow")
   const observerRef = useRef<IntersectionObserver | null>(null)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    // ... existing effect code ...
+  }, [userId, currentUser]) // Ensure this is not truncated incorrectly, using ... to represent unchanged
+
+  // We need to keep the useEffect defined in the file. Since replace_content replaces the chunk.
+  // The user provided chunk spans from state declarations. I need to be careful to not overwrite the huge useEffect inside.
+  // Wait, the instruction says "EndLine: 270". I should look at where I start.
+  // Current state declarations are around lines 31-51.
+  // Handlers are 141 and 254.
+  // I should probably do multiple replaces or one large one IF I can copy the useEffect content.
+  // But copying large content is risky.
+  // Better to use `replace_file_content` on specific handlers first?
+  // Or just insert the state at top, and then update handlers.
+
+  // Let's do it in steps.
+  // 1. Add state and import (imports handled separately or I can add them now if I include top of file).
+  // 2. Update handlers.
+  // 3. Add JSX at bottom.
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -96,17 +118,38 @@ export default function ProfilePage() {
         }
 
         // Load các dữ liệu khác
+        // Safe loading wrappers
+        const loadBadgesSafe = async () => {
+          if (!currentUser) return []
+          try {
+            return await api.getBadges()
+          } catch (e) {
+            console.warn("Failed to load badges:", e)
+            return []
+          }
+        }
+
+        const loadGroupsSafe = async () => {
+          try {
+            const res = await api.getGroups(1, 3)
+            return res
+          } catch (e) {
+            console.warn("Failed to load groups:", e)
+            return { groups: [] }
+          }
+        }
+
         const [postsResult, userGroupsResult, userBadges] = await Promise.all([
           api.getPostsByUser(userData.id, 1, 10),
-          api.getGroups(1, 3), // Mock: filter by user groups in real implementation
-          api.getBadges(),
+          loadGroupsSafe(),
+          loadBadgesSafe(),
         ])
 
         setUser(userData)
         setPosts(postsResult.posts)
         setHasMore(postsResult.hasMore)
         setPage(1)
-        setGroups(userGroupsResult.groups) // Get groups from result
+        setGroups(userGroupsResult.groups || []) // Get groups from result
         setBadges(userBadges.slice(0, 4)) // Mock: user's badges
         console.log("Main loadUserData - Setting isFollowing:", userData.isFollowing, "for user:", userData.displayName)
         setIsFollowing(!!userData.isFollowing)
@@ -140,6 +183,12 @@ export default function ProfilePage() {
 
   const handleFollowToggle = async () => {
     if (!user) return
+
+    if (!currentUser) {
+      setLoginPromptAction("follow")
+      setShowLoginPrompt(true)
+      return
+    }
 
     const previousIsFollowing = isFollowing
     const previousFollowerCount = followerCount
@@ -252,7 +301,13 @@ export default function ProfilePage() {
   }
 
   const handleMessageClick = async () => {
-    if (!user || !currentUser) return
+    if (!user) return
+
+    if (!currentUser) {
+      setLoginPromptAction("message")
+      setShowLoginPrompt(true)
+      return
+    }
 
     try {
       setMessageLoading(true)
@@ -767,6 +822,17 @@ export default function ProfilePage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <LoginPromptDialog
+        open={showLoginPrompt}
+        onOpenChange={setShowLoginPrompt}
+        title={loginPromptAction === "follow" ? "Đăng nhập để theo dõi" : "Đăng nhập để nhắn tin"}
+        description={
+          loginPromptAction === "follow"
+            ? "Bạn cần đăng nhập để theo dõi người dùng này."
+            : "Bạn cần đăng nhập để nhắn tin với người dùng này."
+        }
+      />
     </AppShell>
   )
 }

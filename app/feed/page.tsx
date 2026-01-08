@@ -13,8 +13,11 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { api } from "@/lib/api"
 import type { Post } from "@/types"
+import { useAuth } from "@/contexts/auth-context"
+import { LoginPromptDialog } from "@/components/auth/login-prompt-dialog"
 
 export default function FeedPage() {
+  const { user } = useAuth()
   const [posts, setPosts] = useState<Post[]>([])
   const [trendingPosts, setTrendingPosts] = useState<Post[]>([])
   const [followingPosts, setFollowingPosts] = useState<Post[]>([])
@@ -32,6 +35,8 @@ export default function FeedPage() {
   const [followingHasMore, setFollowingHasMore] = useState(false)
   const [followingLoadingMore, setFollowingLoadingMore] = useState(false)
 
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false)
+
   const observerRef = useRef<IntersectionObserver | null>(null)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
@@ -47,17 +52,27 @@ export default function FeedPage() {
           setTrendingHasMore(result.hasMore)
           setTrendingPage(1)
         } else if (activeTab === "following") {
-          const result = await api.getFollowingPosts(1, 10, 1)
-          setFollowingPosts(result.posts)
-          setFollowingHasMore(result.hasMore)
-          setFollowingPage(1)
+          // Double check if user is logged in, though tab should be hidden
+          if (user) {
+            const result = await api.getFollowingPosts(1, 10, 1)
+            setFollowingPosts(result.posts)
+            setFollowingHasMore(result.hasMore)
+            setFollowingPage(1)
+          }
         } else if (activeTab === "all") {
-          const result = await api.getFeedPosts(1, 10, 1)
+          let result
+          if (user) {
+            result = await api.getFeedPosts(1, 10, 1)
+          } else {
+            // Guest user: use trending posts as "all" (public) feed
+            result = await api.getTrendingPosts(1, 10, 1)
+          }
           setPosts(result.posts)
           setHasMore(result.hasMore)
           setPage(1)
         }
       } catch (err) {
+        console.error("Feed load error:", err)
         setError("Không thể tải bảng tin. Vui lòng thử lại.")
       } finally {
         setLoading(false)
@@ -65,7 +80,7 @@ export default function FeedPage() {
     }
 
     loadPosts()
-  }, [activeTab])
+  }, [activeTab, user])
 
   // Load trending tags
 
@@ -75,7 +90,12 @@ export default function FeedPage() {
     try {
       setLoadingMore(true)
       const nextPage = page + 1
-      const result = await api.getFeedPosts(nextPage, 10, 1)
+      let result
+      if (user) {
+        result = await api.getFeedPosts(nextPage, 10, 1)
+      } else {
+        result = await api.getTrendingPosts(nextPage, 10, 1)
+      }
       setPosts((prev) => [...prev, ...result.posts])
       setHasMore(result.hasMore)
       setPage(nextPage)
@@ -84,7 +104,7 @@ export default function FeedPage() {
     } finally {
       setLoadingMore(false)
     }
-  }, [loadingMore, hasMore, page])
+  }, [loadingMore, hasMore, page, user])
 
   const handleLoadMoreTrending = useCallback(async () => {
     if (trendingLoadingMore || !trendingHasMore) return
@@ -104,7 +124,7 @@ export default function FeedPage() {
   }, [trendingLoadingMore, trendingHasMore, trendingPage])
 
   const handleLoadMoreFollowing = useCallback(async () => {
-    if (followingLoadingMore || !followingHasMore) return
+    if (followingLoadingMore || !followingHasMore || !user) return
 
     try {
       setFollowingLoadingMore(true)
@@ -118,7 +138,7 @@ export default function FeedPage() {
     } finally {
       setFollowingLoadingMore(false)
     }
-  }, [followingLoadingMore, followingHasMore, followingPage])
+  }, [followingLoadingMore, followingHasMore, followingPage, user])
 
   // Infinite scroll observer
   useEffect(() => {
@@ -169,12 +189,19 @@ export default function FeedPage() {
           setTrendingHasMore(result.hasMore)
           setTrendingPage(1)
         } else if (activeTab === "following") {
-          const result = await api.getFollowingPosts(1, 10, 1)
-          setFollowingPosts(result.posts)
-          setFollowingHasMore(result.hasMore)
-          setFollowingPage(1)
+          if (user) {
+            const result = await api.getFollowingPosts(1, 10, 1)
+            setFollowingPosts(result.posts)
+            setFollowingHasMore(result.hasMore)
+            setFollowingPage(1)
+          }
         } else {
-          const result = await api.getFeedPosts(1, 10, 1)
+          let result
+          if (user) {
+            result = await api.getFeedPosts(1, 10, 1)
+          } else {
+            result = await api.getTrendingPosts(1, 10, 1)
+          }
           setPosts(result.posts)
           setHasMore(result.hasMore)
           setPage(1)
@@ -191,7 +218,12 @@ export default function FeedPage() {
   const handleReloadPosts = async () => {
     try {
       if (activeTab === "all") {
-        const result = await api.getFeedPosts(1, 10, 1)
+        let result
+        if (user) {
+          result = await api.getFeedPosts(1, 10, 1)
+        } else {
+          result = await api.getTrendingPosts(1, 10, 1)
+        }
         setPosts(result.posts)
         setHasMore(result.hasMore)
         setPage(1)
@@ -200,7 +232,7 @@ export default function FeedPage() {
         setTrendingPosts(result.posts)
         setTrendingHasMore(result.hasMore)
         setTrendingPage(1)
-      } else if (activeTab === "following") {
+      } else if (activeTab === "following" && user) {
         const result = await api.getFollowingPosts(1, 10, 1)
         setFollowingPosts(result.posts)
         setFollowingHasMore(result.hasMore)
@@ -211,12 +243,19 @@ export default function FeedPage() {
     }
   }
 
+  const handleCreatePostClick = (e: React.MouseEvent) => {
+    if (!user) {
+      e.preventDefault()
+      setShowLoginPrompt(true)
+    }
+  }
+
   const rightSidebarContent = (
     <div className="space-y-6">
       {/* Quick Actions */}
       <div className="space-y-3">
         <Button className="w-full bg-educonnect-primary hover:bg-educonnect-primary/90" asChild>
-          <Link href="/compose">
+          <Link href="/compose" onClick={handleCreatePostClick}>
             <Plus className="mr-2 h-4 w-4" />
             Tạo bài viết
           </Link>
@@ -241,7 +280,7 @@ export default function FeedPage() {
             <p className="text-muted-foreground">Khám phá những bài viết mới nhất từ cộng đồng</p>
           </div>
           <Button className="bg-educonnect-primary hover:bg-educonnect-primary/90" asChild>
-            <Link href="/compose">
+            <Link href="/compose" onClick={handleCreatePostClick}>
               <Plus className="mr-2 h-4 w-4" />
               Tạo bài viết
             </Link>
@@ -249,12 +288,11 @@ export default function FeedPage() {
         </div>
 
         {/* Filters */}
-        {/* Filters */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="flex items-center justify-between px-0">
-            <TabsList className="grid w-full max-w-md grid-cols-3">
+            <TabsList className={`grid w-full max-w-md ${user ? "grid-cols-3" : "grid-cols-2"}`}>
               <TabsTrigger value="all">Tất cả</TabsTrigger>
-              <TabsTrigger value="following">Đang theo dõi</TabsTrigger>
+              {user && <TabsTrigger value="following">Đang theo dõi</TabsTrigger>}
               <TabsTrigger value="trending">Thịnh hành</TabsTrigger>
             </TabsList>
           </div>
@@ -273,11 +311,19 @@ export default function FeedPage() {
             {!loading && !error && posts.length === 0 && (
               <EmptyState
                 title="Chưa có bài viết nào"
-                description="Hãy là người đầu tiên chia sẻ kiến thức với cộng đồng!"
-                action={{
-                  label: "Tạo bài viết đầu tiên",
-                  onClick: () => (window.location.href = "/compose"),
-                }}
+                description={
+                  user
+                    ? "Hãy là người đầu tiên chia sẻ kiến thức với cộng đồng!"
+                    : "Chưa có bài viết nào trong bảng tin."
+                }
+                action={
+                  user
+                    ? {
+                        label: "Tạo bài viết đầu tiên",
+                        onClick: () => (window.location.href = "/compose"),
+                      }
+                    : undefined
+                }
               />
             )}
 
@@ -311,57 +357,59 @@ export default function FeedPage() {
             )}
           </TabsContent>
 
-          <TabsContent value="following" className="space-y-6 mt-6">
-            {loading && (
-              <div className="space-y-6">
-                {[...Array(3)].map((_, i) => (
-                  <PostSkeleton key={i} />
-                ))}
-              </div>
-            )}
-
-            {error && <ErrorState description={error} onRetry={handleRetry} />}
-
-            {!loading && !error && followingPosts.length === 0 && (
-              <EmptyState
-                title="Chưa theo dõi ai"
-                description="Theo dõi những người dùng thú vị để xem bài viết của họ ở đây"
-                action={{
-                  label: "Khám phá người dùng",
-                  onClick: () => (window.location.href = "/people"),
-                }}
-              />
-            )}
-
-            {!loading && !error && followingPosts.length > 0 && (
-              <>
+          {user && (
+            <TabsContent value="following" className="space-y-6 mt-6">
+              {loading && (
                 <div className="space-y-6">
-                  {followingPosts.map((post) => (
-                    <PostCard
-                      key={post.id}
-                      post={post}
-                      onPostUpdated={handleReloadPosts}
-                      onPostDeleted={handleReloadPosts}
-                    />
+                  {[...Array(3)].map((_, i) => (
+                    <PostSkeleton key={i} />
                   ))}
                 </div>
+              )}
 
-                {/* Infinite Scroll Trigger */}
-                {(followingHasMore || followingLoadingMore) && (
-                  <div ref={loadMoreRef} className="flex justify-center py-4">
-                    {followingLoadingMore ? (
-                      <div className="flex items-center space-x-2 text-muted-foreground">
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        <span>Đang tải thêm...</span>
-                      </div>
-                    ) : (
-                      <div className="h-4" /> /* Invisible trigger target */
-                    )}
+              {error && <ErrorState description={error} onRetry={handleRetry} />}
+
+              {!loading && !error && followingPosts.length === 0 && (
+                <EmptyState
+                  title="Chưa theo dõi ai"
+                  description="Theo dõi những người dùng thú vị để xem bài viết của họ ở đây"
+                  action={{
+                    label: "Khám phá người dùng",
+                    onClick: () => (window.location.href = "/people"),
+                  }}
+                />
+              )}
+
+              {!loading && !error && followingPosts.length > 0 && (
+                <>
+                  <div className="space-y-6">
+                    {followingPosts.map((post) => (
+                      <PostCard
+                        key={post.id}
+                        post={post}
+                        onPostUpdated={handleReloadPosts}
+                        onPostDeleted={handleReloadPosts}
+                      />
+                    ))}
                   </div>
-                )}
-              </>
-            )}
-          </TabsContent>
+
+                  {/* Infinite Scroll Trigger */}
+                  {(followingHasMore || followingLoadingMore) && (
+                    <div ref={loadMoreRef} className="flex justify-center py-4">
+                      {followingLoadingMore ? (
+                        <div className="flex items-center space-x-2 text-muted-foreground">
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          <span>Đang tải thêm...</span>
+                        </div>
+                      ) : (
+                        <div className="h-4" /> /* Invisible trigger target */
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </TabsContent>
+          )}
 
           <TabsContent value="trending" className="space-y-6 mt-6">
             {loading && (
@@ -415,6 +463,13 @@ export default function FeedPage() {
             )}
           </TabsContent>
         </Tabs>
+
+        <LoginPromptDialog
+          open={showLoginPrompt}
+          onOpenChange={setShowLoginPrompt}
+          title="Đăng nhập để tạo bài viết"
+          description="Bạn cần đăng nhập để chia sẻ kiến thức và đặt câu hỏi cho cộng đồng."
+        />
       </div>
     </AppShell>
   )

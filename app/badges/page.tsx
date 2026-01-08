@@ -44,7 +44,17 @@ const getRarityLabel = (rarity: BadgeType["rarity"]) => {
   }
 }
 
+import { AuthGuard } from "@/components/auth/auth-guard"
+
 export default function BadgesPage() {
+  return (
+    <AuthGuard>
+      <BadgesPageContent />
+    </AuthGuard>
+  )
+}
+
+function BadgesPageContent() {
   const [badges, setBadges] = useState<BadgeType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

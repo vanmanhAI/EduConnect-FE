@@ -35,7 +35,17 @@ const getNotificationIcon = (type: Notification["type"]) => {
   }
 }
 
+import { AuthGuard } from "@/components/auth/auth-guard"
+
 export default function NotificationsPage() {
+  return (
+    <AuthGuard>
+      <NotificationsPageContent />
+    </AuthGuard>
+  )
+}
+
+function NotificationsPageContent() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

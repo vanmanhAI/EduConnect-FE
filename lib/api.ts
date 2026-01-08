@@ -436,6 +436,89 @@ export const api = {
     }
   },
 
+  async forgotPassword(email: string) {
+    const response = await fetch(
+      (process.env.NEXT_PUBLIC_API_BASE || "https://educonnect-be-wx8t.onrender.com/api/v1") + "/auth/forgot-password",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      }
+    )
+
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.message || data.error || "Gửi yêu cầu thất bại")
+    }
+    return data
+  },
+
+  async resetPassword(password: string, token: string) {
+    const response = await fetch(
+      (process.env.NEXT_PUBLIC_API_BASE || "https://educonnect-be-wx8t.onrender.com/api/v1") + "/auth/reset-password",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ password, token }),
+      }
+    )
+
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.message || data.error || "Đặt lại mật khẩu thất bại")
+    }
+    return data.data || data
+  },
+
+  async verifyResetToken(token: string) {
+    const response = await fetch(
+      (process.env.NEXT_PUBLIC_API_BASE || "https://educonnect-be-wx8t.onrender.com/api/v1") +
+        "/auth/verify-reset-token",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token }),
+      }
+    )
+
+    const data = await response.json()
+    if (!response.ok) {
+      return { isValid: false }
+    }
+    return data.data || data
+  },
+
+  async changePassword(oldPassword: string, newPassword: string) {
+    const token = typeof window !== "undefined" ? localStorage.getItem("educonnect_token") : null
+    if (!token) {
+      throw new Error("Token không tồn tại")
+    }
+
+    const response = await fetch(
+      (process.env.NEXT_PUBLIC_API_BASE || "https://educonnect-be-wx8t.onrender.com/api/v1") + "/auth/change-password",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ oldPassword, newPassword }),
+      }
+    )
+
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.message || data.error || "Đổi mật khẩu thất bại")
+    }
+    return data.data || data
+  },
+
   async getUserPrivacy(): Promise<{
     profileVisibility: string
     isOnline: boolean
@@ -1923,12 +2006,17 @@ export const api = {
   },
 
   async getPost(id: string): Promise<Post | null> {
+    const token = tokenManager.getToken()
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    }
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`
+    }
+
     const response = await fetch(`${API_BASE}/posts/${id}`, {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${tokenManager.getToken()}`,
-      },
+      headers,
     })
 
     if (!response.ok) {
@@ -2294,10 +2382,14 @@ export const api = {
     page: number = 1,
     limit: number = 10
   ): Promise<{ comments: Comment[]; hasMore: boolean }> {
+    const token = tokenManager.getToken()
+    const headers: HeadersInit = {}
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`
+    }
+
     const response = await fetch(`${API_BASE}/comments?page=${page}&limit=${limit}&postId=${postId}`, {
-      headers: {
-        Authorization: `Bearer ${tokenManager.getToken()}`,
-      },
+      headers,
     })
 
     if (!response.ok) {
