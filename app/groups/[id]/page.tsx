@@ -48,12 +48,15 @@ import { api } from "@/lib/api"
 import { tokenManager } from "@/lib/auth"
 import { formatNumber } from "@/lib/utils"
 import type { Group, Post, User } from "@/types"
+import { useAuth } from "@/contexts/auth-context"
+import { LoginPromptDialog } from "@/components/auth/login-prompt-dialog"
 
 export default function GroupDetailPage() {
   const { toast } = useToast()
   const params = useParams()
   const router = useRouter()
   const groupId = params.id as string
+  const { user } = useAuth()
 
   const [group, setGroup] = useState<Group | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
@@ -72,6 +75,8 @@ export default function GroupDetailPage() {
   const [shareUrl, setShareUrl] = useState("")
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false)
   const [isCopied, setIsCopied] = useState(false)
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false)
+  const [loginPromptAction, setLoginPromptAction] = useState<"join" | "create_post">("join")
 
   const observerRef = useRef<IntersectionObserver | null>(null)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
@@ -113,10 +118,17 @@ export default function GroupDetailPage() {
 
         // Load posts (non-blocking)
         try {
-          const postsResult = await api.getGroupPosts(groupId, 1, 10, 1)
-          setPosts(postsResult.posts)
-          setPostsHasMore(postsResult.hasMore)
-          setPostsPage(1)
+          // Only attempt to load posts if the group is public or the user is a member
+          // Guest users can view posts of public groups (assuming API supports it)
+          if (!groupData.isPrivate || joinStatus === "joined") {
+            const postsResult = await api.getGroupPosts(groupId, 1, 10, 1)
+            setPosts(postsResult.posts)
+            setPostsHasMore(postsResult.hasMore)
+            setPostsPage(1)
+          } else {
+            setPosts([])
+            setPostsHasMore(false)
+          }
         } catch (err) {
           console.error("Failed to load group posts:", err)
           setPosts([])
@@ -196,6 +208,12 @@ export default function GroupDetailPage() {
   }
 
   const handleJoinToggle = async () => {
+    if (!user) {
+      setLoginPromptAction("join")
+      setShowLoginPrompt(true)
+      return
+    }
+
     if (!group) return
 
     const previousGroup = group
@@ -247,6 +265,17 @@ export default function GroupDetailPage() {
         title: "Lỗi",
         description: error.message || "Không thể thực hiện thao tác. Vui lòng thử lại.",
       })
+    }
+  }
+
+  const handleCreatePostClick = () => {
+    if (!user) {
+      setLoginPromptAction("create_post")
+      setShowLoginPrompt(true)
+    } else {
+      if (group) {
+        router.push(`/compose?group=${group.id}`)
+      }
     }
   }
 
@@ -438,7 +467,7 @@ export default function GroupDetailPage() {
   }
 
   const canViewContent = !group.isPrivate || group.joinStatus === "joined"
-  const canViewPosts = group.joinStatus === "joined" // Only members can view posts
+  const canViewPosts = !group.isPrivate || group.joinStatus === "joined"
 
   return (
     <AppShell>
@@ -580,7 +609,7 @@ export default function GroupDetailPage() {
                   description="Hãy là người đầu tiên chia sẻ trong nhóm này!"
                   action={{
                     label: "Tạo bài viết",
-                    onClick: () => (window.location.href = `/compose?group=${group.id}`),
+                    onClick: handleCreatePostClick,
                   }}
                 />
               ) : (
@@ -704,6 +733,17 @@ export default function GroupDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <LoginPromptDialog
+        open={showLoginPrompt}
+        onOpenChange={setShowLoginPrompt}
+        title={loginPromptAction === "join" ? "Đăng nhập để tham gia nhóm" : "Đăng nhập để tạo bài viết"}
+        description={
+          loginPromptAction === "join"
+            ? "Bạn cần đăng nhập để tham gia và tương tác trong nhóm."
+            : "Bạn cần đăng nhập để chia sẻ bài viết trong nhóm."
+        }
+      />
     </AppShell>
   )
 }

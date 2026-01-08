@@ -28,7 +28,17 @@ interface BookmarkItem {
   }
 }
 
+import { AuthGuard } from "@/components/auth/auth-guard"
+
 export default function BookmarksPage() {
+  return (
+    <AuthGuard>
+      <BookmarksPageContent />
+    </AuthGuard>
+  )
+}
+
+function BookmarksPageContent() {
   const [bookmarks, setBookmarks] = useState<BookmarkItem[]>([])
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)

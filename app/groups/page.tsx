@@ -20,11 +20,14 @@ import { api } from "@/lib/api"
 import { useFileUpload } from "@/hooks/use-file-upload"
 import { debounce } from "@/lib/utils"
 import type { Group } from "@/types"
+import { useAuth } from "@/contexts/auth-context"
+import { LoginPromptDialog } from "@/components/auth/login-prompt-dialog"
 
 export default function GroupsPage() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const { user } = useAuth()
   const [groups, setGroups] = useState<Group[]>([])
   const [filteredGroups, setFilteredGroups] = useState<Group[]>([])
   const [joinedGroups, setJoinedGroups] = useState<Group[]>([])
@@ -57,6 +60,7 @@ export default function GroupsPage() {
   const [history, setHistory] = useState<string[]>([])
   const searchingSeqRef = useRef(0)
   const debouncedSearchRef = useRef<((q: string, f: string, p: number) => void) | null>(null)
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false)
 
   const observerRef = useRef<IntersectionObserver | null>(null)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
@@ -104,6 +108,13 @@ export default function GroupsPage() {
   // Load joined groups when tab changes to "joined"
   useEffect(() => {
     if (activeTab === "joined" && joinedGroups.length === 0) {
+      // Validate user is logged in
+      if (!user) {
+        // Should not reach here typically due to UI hiding, but for safety
+        setJoinedGroups([])
+        return
+      }
+
       const loadJoinedGroups = async () => {
         try {
           setJoinedGroupsLoading(true)
@@ -126,7 +137,7 @@ export default function GroupsPage() {
 
       loadJoinedGroups()
     }
-  }, [activeTab, joinedGroups.length, pageSize])
+  }, [activeTab, joinedGroups.length, pageSize, user])
 
   // Load trending groups when tab changes to "trending"
   useEffect(() => {
@@ -164,10 +175,10 @@ export default function GroupsPage() {
 
     setSearchQuery(q)
     // setSelectedFilter(filter) // Disabled
-    setActiveTab(tab)
+    setActiveTab(tab === "joined" && !user ? "all" : tab) // Redirect 'joined' to 'all' if not logged in
     setHistory(savedHistory.slice(0, 10))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [user]) // Re-run if user status changes (login)
 
   // Create debounced search function once (or when pageSize changes)
   useEffect(() => {
@@ -296,7 +307,7 @@ export default function GroupsPage() {
   }, [loadingMore, hasMore, page, pageSize])
 
   const handleLoadMoreJoined = useCallback(async () => {
-    if (joinedLoadingMore || !joinedHasMore) return
+    if (joinedLoadingMore || !joinedHasMore || !user) return
 
     try {
       setJoinedLoadingMore(true)
@@ -310,7 +321,7 @@ export default function GroupsPage() {
     } finally {
       setJoinedLoadingMore(false)
     }
-  }, [joinedLoadingMore, joinedHasMore, joinedPage, pageSize])
+  }, [joinedLoadingMore, joinedHasMore, joinedPage, pageSize, user])
 
   const handleLoadMoreTrending = useCallback(async () => {
     if (trendingLoadingMore || !trendingHasMore) return
@@ -437,6 +448,13 @@ export default function GroupsPage() {
     return filter ? filter.label : "Tất cả nhóm"
   }
 
+  const handleCreateGroupClick = (e: React.MouseEvent) => {
+    if (!user) {
+      e.preventDefault()
+      setShowLoginPrompt(true)
+    }
+  }
+
   const rightSidebarContent = (
     <div className="space-y-6">
       {/* Quick Stats */}
@@ -447,7 +465,7 @@ export default function GroupsPage() {
         </div>
         <div className="flex justify-between">
           <span>Đã tham gia:</span>
-          <span className="font-medium">{groups.filter((g) => g.joinStatus === "joined").length}</span>
+          <span className="font-medium">{user ? groups.filter((g) => g.joinStatus === "joined").length : 0}</span>
         </div>
       </div>
     </div>
@@ -462,31 +480,41 @@ export default function GroupsPage() {
             <h1 className="text-2xl font-bold">Khám phá nhóm</h1>
             <p className="text-muted-foreground">Tham gia cộng đồng học tập và chia sẻ kiến thức</p>
           </div>
-          <CreateGroupDialog
-            onCreated={async () => {
-              // Refresh the groups list after creating a new group
-              try {
-                setLoading(true)
-                const result = await api.getGroups(1, pageSize)
-                setGroups(result.groups)
-                setFilteredGroups(result.groups)
-                setHasMore(result.hasMore)
-                setPage(1)
-                setError(null) // Clear any previous errors
-              } catch (err) {
-                console.error("Failed to refresh groups after creation:", err)
-                setError("Không thể tải danh sách nhóm. Vui lòng thử lại.")
-                // If refresh fails, try to trigger search to update the list
+          {user ? (
+            <CreateGroupDialog
+              onCreated={async () => {
+                // Refresh the groups list after creating a new group
                 try {
-                  debouncedSearchRef.current?.("", "all", 1)
-                } catch (searchErr) {
-                  console.error("Search fallback also failed:", searchErr)
+                  setLoading(true)
+                  const result = await api.getGroups(1, pageSize)
+                  setGroups(result.groups)
+                  setFilteredGroups(result.groups)
+                  setHasMore(result.hasMore)
+                  setPage(1)
+                  setError(null) // Clear any previous errors
+                } catch (err) {
+                  console.error("Failed to refresh groups after creation:", err)
+                  setError("Không thể tải danh sách nhóm. Vui lòng thử lại.")
+                  // If refresh fails, try to trigger search to update the list
+                  try {
+                    debouncedSearchRef.current?.("", "all", 1)
+                  } catch (searchErr) {
+                    console.error("Search fallback also failed:", searchErr)
+                  }
+                } finally {
+                  setLoading(false)
                 }
-              } finally {
-                setLoading(false)
-              }
-            }}
-          />
+              }}
+            />
+          ) : (
+            <Button
+              className="bg-educonnect-primary hover:bg-educonnect-primary/90 shrink-0"
+              onClick={handleCreateGroupClick}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Tạo nhóm
+            </Button>
+          )}
         </div>
 
         {/* Search and Filters - Sticky */}
@@ -605,9 +633,9 @@ export default function GroupsPage() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full max-w-2xl grid-cols-3">
+          <TabsList className={`grid w-full max-w-2xl ${user ? "grid-cols-3" : "grid-cols-2"}`}>
             <TabsTrigger value="all">Tất cả</TabsTrigger>
-            <TabsTrigger value="joined">Đã tham gia</TabsTrigger>
+            {user && <TabsTrigger value="joined">Đã tham gia</TabsTrigger>}
             <TabsTrigger value="trending">Phổ biến</TabsTrigger>
           </TabsList>
 
@@ -651,7 +679,12 @@ export default function GroupsPage() {
                     if (activeTab === "joined" || activeTab === "trending") {
                       setActiveTab("all")
                     } else {
-                      // Navigate to create group
+                      if (user) {
+                        // This path should ideally be handled by state switch,
+                        // but direct navigation protection is good fallback
+                      } else {
+                        setShowLoginPrompt(true)
+                      }
                     }
                   },
                 }}
@@ -691,6 +724,13 @@ export default function GroupsPage() {
             )}
           </TabsContent>
         </Tabs>
+
+        <LoginPromptDialog
+          open={showLoginPrompt}
+          onOpenChange={setShowLoginPrompt}
+          title="Đăng nhập để tạo nhóm"
+          description="Bạn cần đăng nhập để tạo và quản lý nhóm học tập của riêng mình."
+        />
       </div>
     </AppShell>
   )

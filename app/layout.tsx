@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/auth-context"
 import { NotificationProvider } from "@/components/notifications/notification-provider"
 import { NotificationContainer } from "@/components/notifications/notification-container"
 import { IncomingCallListener } from "@/components/video/incoming-call-listener"
+import { Toaster } from "@/components/ui/toaster"
 import { Suspense } from "react"
 import "./globals.css"
 
@@ -61,6 +62,7 @@ export default function RootLayout({
                 {children}
                 <NotificationContainer />
                 <IncomingCallListener />
+                <Toaster />
               </NotificationProvider>
             </AuthProvider>
           </ThemeProvider>

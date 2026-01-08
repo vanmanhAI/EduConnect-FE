@@ -57,6 +57,9 @@ const extractImages = (markdown: string): string[] => {
   return images
 }
 
+import { useAuth } from "@/contexts/auth-context"
+import { LoginPromptDialog } from "@/components/auth/login-prompt-dialog"
+
 interface PostCardProps {
   post: Post
   showGroup?: boolean
@@ -90,11 +93,27 @@ export function PostCard({
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const { user } = useAuth()
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false)
+  const [loginPromptReason, setLoginPromptReason] = useState<{ title: string; description: string }>({
+    title: "",
+    description: "",
+  })
+
   // Check if current user is the author
-  const currentUser = tokenManager.getUser()
-  const isAuthor = currentUser && String(currentUser.id) === String(post.authorId)
+  // We use the hook's user instead of tokenManager directly for reactivity
+  const isAuthor = user && String(user.id) === String(post.authorId)
 
   const handleLike = async () => {
+    if (!user) {
+      setLoginPromptReason({
+        title: "Đăng nhập để thích bài viết",
+        description: "Bạn cần đăng nhập để thể hiện cảm xúc với bài viết này.",
+      })
+      setShowLoginPrompt(true)
+      return
+    }
+
     if (loading) return
 
     setLoading(true)
@@ -138,10 +157,23 @@ export function PostCard({
     } else {
       // Fallback: copy to clipboard
       navigator.clipboard.writeText(`${window.location.origin}/posts/${post.id}`)
+      toast({
+        title: "Đã sao chép liên kết",
+        description: "Liên kết bài viết đã được sao chép vào bộ nhớ tạm",
+      })
     }
   }
 
   const handleBookmark = async () => {
+    if (!user) {
+      setLoginPromptReason({
+        title: "Đăng nhập để lưu bài viết",
+        description: "Bạn cần đăng nhập để lưu trữ những bài viết hay.",
+      })
+      setShowLoginPrompt(true)
+      return
+    }
+
     if (bookmarkLoading) return
 
     setBookmarkLoading(true)
@@ -563,6 +595,13 @@ export function PostCard({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <LoginPromptDialog
+        open={showLoginPrompt}
+        onOpenChange={setShowLoginPrompt}
+        title={loginPromptReason.title}
+        description={loginPromptReason.description}
+      />
     </Card>
   )
 }

@@ -19,6 +19,8 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { Comment } from "@/types"
 import { api } from "@/lib/api"
+import { useAuth } from "@/contexts/auth-context"
+import { LoginPromptDialog } from "@/components/auth/login-prompt-dialog"
 import { tokenManager } from "@/lib/auth"
 import { formatDistanceToNow } from "date-fns"
 import { vi } from "date-fns/locale"
@@ -31,6 +33,8 @@ interface CommentItemProps {
 
 export function CommentItem({ comment, postId, onCommentAdded }: CommentItemProps) {
   const { toast } = useToast()
+  const { user: currentUser } = useAuth()
+
   const [isReplying, setIsReplying] = useState(false)
   const [replyContent, setReplyContent] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -43,11 +47,19 @@ export function CommentItem({ comment, postId, onCommentAdded }: CommentItemProp
   const [likeCount, setLikeCount] = useState(comment.likeCount)
   const [isLiking, setIsLiking] = useState(false)
 
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false)
+  const [loginPromptAction, setLoginPromptAction] = useState<"like" | "reply">("like")
+
   // Check if current user is the author
-  const currentUser = tokenManager.getUser()
   const isAuthor = currentUser && String(currentUser.id) === String(comment.authorId)
 
   const handleLike = async () => {
+    if (!currentUser) {
+      setLoginPromptAction("like")
+      setShowLoginPrompt(true)
+      return
+    }
+
     if (isLiking) return
 
     setIsLiking(true)
@@ -288,7 +300,14 @@ export function CommentItem({ comment, postId, onCommentAdded }: CommentItemProp
             </button>
             <button
               className="hover:text-foreground transition-colors flex items-center gap-1"
-              onClick={() => setIsReplying(!isReplying)}
+              onClick={() => {
+                if (!currentUser) {
+                  setLoginPromptAction("reply")
+                  setShowLoginPrompt(true)
+                  return
+                }
+                setIsReplying(!isReplying)
+              }}
             >
               <MessageCircle className="h-3 w-3" />
               <span>Trả lời</span>
@@ -365,6 +384,17 @@ export function CommentItem({ comment, postId, onCommentAdded }: CommentItemProp
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <LoginPromptDialog
+        open={showLoginPrompt}
+        onOpenChange={setShowLoginPrompt}
+        title={loginPromptAction === "like" ? "Đăng nhập để thích" : "Đăng nhập để trả lời"}
+        description={
+          loginPromptAction === "like"
+            ? "Bạn cần đăng nhập để thích bình luận này."
+            : "Bạn cần đăng nhập để trả lời bình luận này."
+        }
+      />
     </div>
   )
 }

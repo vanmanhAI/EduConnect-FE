@@ -22,6 +22,8 @@ import { formatNumber } from "@/lib/utils"
 import { api } from "@/lib/api"
 import { tokenManager } from "@/lib/auth"
 import type { User } from "@/types"
+import { useAuth } from "@/contexts/auth-context"
+import { LoginPromptDialog } from "@/components/auth/login-prompt-dialog"
 
 interface UserCardProps {
   user: User
@@ -49,10 +51,16 @@ export function UserCard({
   const [isLeaving, setIsLeaving] = useState(false)
 
   // Check if this card is for the current user
-  const currentUser = tokenManager.getUser()
+  const { user: currentUser } = useAuth()
   const isCurrentUser = currentUser && currentUser.id === user.id
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false)
 
   const handleFollowToggle = async () => {
+    if (!currentUser) {
+      setShowLoginPrompt(true)
+      return
+    }
+
     if (loading) return
 
     setLoading(true)
@@ -273,6 +281,13 @@ export function UserCard({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <LoginPromptDialog
+        open={showLoginPrompt}
+        onOpenChange={setShowLoginPrompt}
+        title="Đăng nhập để theo dõi"
+        description="Bạn cần đăng nhập để theo dõi người dùng này."
+      />
     </>
   )
 }

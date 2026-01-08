@@ -12,7 +12,8 @@ import { LoadingSkeleton } from "@/components/ui/loading-skeleton"
 import { ErrorState } from "@/components/ui/error-state"
 import { useToast } from "@/hooks/use-toast"
 import { api } from "@/lib/api"
-import { tokenManager } from "@/lib/auth"
+import { useAuth } from "@/contexts/auth-context"
+import { LoginPromptDialog } from "@/components/auth/login-prompt-dialog"
 import { Send, Loader2 } from "lucide-react"
 import type { Post, Comment } from "@/types"
 
@@ -20,6 +21,7 @@ export default function PostDetailPage() {
   const params = useParams()
   const postId = params.id as string
   const { toast } = useToast()
+  const { user: currentUser } = useAuth()
 
   const [post, setPost] = useState<Post | null>(null)
   const [comments, setComments] = useState<Comment[]>([])
@@ -30,11 +32,10 @@ export default function PostDetailPage() {
   const [commentsPage, setCommentsPage] = useState(1)
   const [hasMoreComments, setHasMoreComments] = useState(false)
   const [loadingMoreComments, setLoadingMoreComments] = useState(false)
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false)
 
   const observerRef = useRef<IntersectionObserver | null>(null)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
-
-  const currentUser = tokenManager.getUser()
 
   useEffect(() => {
     loadPost()
@@ -107,6 +108,11 @@ export default function PostDetailPage() {
   }, [loading, hasMoreComments, loadingMoreComments, handleLoadMoreComments])
 
   const handleAddComment = async () => {
+    if (!currentUser) {
+      setShowLoginPrompt(true)
+      return
+    }
+
     if (!newComment.trim()) {
       toast({
         title: "Lỗi",
@@ -178,15 +184,21 @@ export default function PostDetailPage() {
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1">
-                <Textarea
-                  placeholder="Viết bình luận..."
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  className="min-h-[80px] resize-none"
-                  disabled={isSubmitting}
-                />
+                <div onClick={() => !currentUser && setShowLoginPrompt(true)}>
+                  <Textarea
+                    placeholder={currentUser ? "Viết bình luận..." : "Đăng nhập để bình luận..."}
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    className="min-h-[80px] resize-none"
+                    disabled={isSubmitting || !currentUser}
+                  />
+                </div>
                 <div className="flex justify-end mt-2">
-                  <Button onClick={handleAddComment} disabled={!newComment.trim() || isSubmitting} size="sm">
+                  <Button
+                    onClick={handleAddComment}
+                    disabled={(!newComment.trim() && !!currentUser) || isSubmitting}
+                    size="sm"
+                  >
                     <Send className="h-4 w-4 mr-2" />
                     {isSubmitting ? "Đang gửi..." : "Gửi bình luận"}
                   </Button>
@@ -228,6 +240,13 @@ export default function PostDetailPage() {
           </div>
         </div>
       </div>
+
+      <LoginPromptDialog
+        open={showLoginPrompt}
+        onOpenChange={setShowLoginPrompt}
+        title="Đăng nhập để bình luận"
+        description="Bạn cần đăng nhập để tham gia thảo luận."
+      />
     </AppShell>
   )
 }

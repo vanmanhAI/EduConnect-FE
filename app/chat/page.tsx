@@ -11,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { LoadingSkeleton } from "@/components/ui/loading-skeleton"
 import { ErrorState } from "@/components/ui/error-state"
 import { api } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
 import { formatDistanceToNow } from "date-fns"
 import { vi } from "date-fns/locale"
 import {
@@ -57,6 +58,7 @@ export default function ChatPage() {
   const router = useRouter()
   const { user: currentUser } = useAuth()
   const { setActiveConversationId } = useNotificationContext()
+  const { toast } = useToast()
   const [threads, setThreads] = useState<ChatThread[]>([])
   const [activeThread, setActiveThread] = useState<ChatThread | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -677,6 +679,16 @@ export default function ChatPage() {
 
   const handleFileSelect = async (file: File) => {
     if (file && activeThread) {
+      // Validate file size (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          variant: "destructive",
+          title: "Kích thước tệp quá lớn",
+          description: "Vui lòng chọn tệp tin có kích thước dưới 5MB.",
+        })
+        return
+      }
+
       try {
         setUploadProgress(0) // Start progress
 
@@ -755,7 +767,11 @@ export default function ChatPage() {
         setTimeout(scrollBottom, 1000)
       } catch (error) {
         console.error("Failed to upload file:", error)
-        alert("Lỗi upload file: " + (error as any).message)
+        toast({
+          variant: "destructive",
+          title: "Lỗi tải lên",
+          description: "Không thể tải tệp tin: " + (error as any).message,
+        })
         setUploadProgress(undefined) // Reset on error
       }
     }

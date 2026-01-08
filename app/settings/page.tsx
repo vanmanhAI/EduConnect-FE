@@ -14,12 +14,38 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { AppShell } from "@/components/layout/app-shell"
 import { useToast } from "@/hooks/use-toast"
-import { useAuth } from "@/contexts/auth-context"
-/* New import */
 import { useFileUpload } from "@/hooks/use-file-upload"
+import { useAuth } from "@/contexts/auth-context"
+import { AuthGuard } from "@/components/auth/auth-guard"
 import { api } from "@/lib/api"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import * as z from "zod"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Loader2 } from "lucide-react"
+
+const passwordSchema = z
+  .object({
+    oldPassword: z.string().min(1, "Mật khẩu hiện tại là bắt buộc"),
+    newPassword: z.string().min(6, "Mật khẩu mới phải có ít nhất 6 ký tự"),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Mật khẩu xác nhận không khớp",
+    path: ["confirmPassword"],
+  })
+
+type PasswordFormValues = z.infer<typeof passwordSchema>
 
 export default function SettingsPage() {
+  return (
+    <AuthGuard>
+      <SettingsPageContent />
+    </AuthGuard>
+  )
+}
+
+function SettingsPageContent() {
   const { toast } = useToast()
   const { user, refreshUser, updateUser } = useAuth()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -41,20 +67,6 @@ export default function SettingsPage() {
 
   const [originalProfile, setOriginalProfile] = useState(profile)
   const [loading, setLoading] = useState(false)
-  const [privacyLoading, setPrivacyLoading] = useState(false)
-
-  const [notifications, setNotifications] = useState({
-    emailNotifications: true,
-    pushNotifications: true,
-    weeklyDigest: false,
-    mentionNotifications: true,
-  })
-
-  const [privacy, setPrivacy] = useState({
-    profileVisibility: "public",
-    isOnline: true,
-  })
-  const [originalPrivacy, setOriginalPrivacy] = useState(privacy)
 
   // Load user data
   useEffect(() => {
@@ -73,28 +85,6 @@ export default function SettingsPage() {
       setProfile(userData)
       setOriginalProfile(userData)
     }
-  }, [user])
-
-  // Load privacy settings
-  useEffect(() => {
-    const loadPrivacySettings = async () => {
-      if (!user) return
-      try {
-        setPrivacyLoading(true)
-        const privacyData = await api.getUserPrivacy()
-        const privacySettings = {
-          profileVisibility: privacyData.profileVisibility || "public",
-          isOnline: privacyData.isOnline !== undefined ? privacyData.isOnline : true,
-        }
-        setPrivacy(privacySettings)
-        setOriginalPrivacy(privacySettings)
-      } catch (error) {
-        console.error("Failed to load privacy settings:", error)
-      } finally {
-        setPrivacyLoading(false)
-      }
-    }
-    loadPrivacySettings()
   }, [user])
 
   const hasChanges = () => {
@@ -189,38 +179,6 @@ export default function SettingsPage() {
     }
   }
 
-  const handleSavePrivacy = async () => {
-    setLoading(true)
-    try {
-      console.log("Updating privacy settings:", privacy)
-
-      // Gọi API để cập nhật privacy settings
-      const updatedPrivacy = await api.updateUserPrivacy(privacy)
-
-      console.log("Privacy settings updated successfully:", updatedPrivacy)
-
-      // Cập nhật originalPrivacy để so sánh thay đổi
-      setOriginalPrivacy(updatedPrivacy)
-
-      // Cập nhật state với data mới từ server
-      setPrivacy(updatedPrivacy)
-
-      toast({
-        title: "Đã lưu cài đặt riêng tư",
-        description: "Cài đặt riêng tư đã được cập nhật thành công",
-      })
-    } catch (error) {
-      console.error("Error updating privacy:", error)
-      toast({
-        title: "Lưu thất bại",
-        description: "Không thể cập nhật cài đặt riêng tư. Vui lòng thử lại.",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleSaveNotifications = async () => {
     setLoading(true)
     try {
@@ -233,6 +191,37 @@ export default function SettingsPage() {
     }
   }
 
+  const passwordForm = useForm<PasswordFormValues>({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: {
+      oldPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    },
+  })
+
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+
+  async function onPasswordSubmit(values: PasswordFormValues) {
+    setIsChangingPassword(true)
+    try {
+      await api.changePassword(values.oldPassword, values.newPassword)
+      toast({
+        title: "Thành công",
+        description: "Mật khẩu của bạn đã được thay đổi.",
+      })
+      passwordForm.reset()
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: error.message || "Không thể đổi mật khẩu. Vui lòng thử lại.",
+      })
+    } finally {
+      setIsChangingPassword(false)
+    }
+  }
+
   return (
     <AppShell>
       <div className="max-w-4xl mx-auto space-y-6">
@@ -242,10 +231,8 @@ export default function SettingsPage() {
         </div>
 
         <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-4 sticky top-0 z-10 bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <TabsList className="grid w-full max-w-md grid-cols-2 sticky top-0 z-10 bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/60">
             <TabsTrigger value="profile">Hồ sơ</TabsTrigger>
-            <TabsTrigger value="notifications">Thông báo</TabsTrigger>
-            <TabsTrigger value="privacy">Riêng tư</TabsTrigger>
             <TabsTrigger value="account">Tài khoản</TabsTrigger>
           </TabsList>
 
@@ -387,179 +374,63 @@ export default function SettingsPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="notifications" className="space-y-6">
-            <Card className="border-none shadow-none">
-              <CardHeader className="px-0">
-                <CardTitle className="flex items-center gap-2">
-                  <Bell className="h-5 w-5" />
-                  Cài đặt thông báo
-                </CardTitle>
-                <CardDescription>Quản lý cách bạn nhận thông báo</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4 px-0">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <Label>Thông báo email</Label>
-                      <p className="text-sm text-muted-foreground">Nhận thông báo qua email</p>
-                    </div>
-                    <Switch
-                      checked={notifications.emailNotifications}
-                      onCheckedChange={(checked) =>
-                        setNotifications((prev) => ({ ...prev, emailNotifications: checked }))
-                      }
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <Label>Thông báo đẩy</Label>
-                      <p className="text-sm text-muted-foreground">Nhận thông báo trên trình duyệt</p>
-                    </div>
-                    <Switch
-                      checked={notifications.pushNotifications}
-                      onCheckedChange={(checked) =>
-                        setNotifications((prev) => ({ ...prev, pushNotifications: checked }))
-                      }
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <Label>Tóm tắt hàng tuần</Label>
-                      <p className="text-sm text-muted-foreground">Nhận email tóm tắt hoạt động hàng tuần</p>
-                    </div>
-                    <Switch
-                      checked={notifications.weeklyDigest}
-                      onCheckedChange={(checked) => setNotifications((prev) => ({ ...prev, weeklyDigest: checked }))}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <Label>Thông báo nhắc đến</Label>
-                      <p className="text-sm text-muted-foreground">Khi ai đó nhắc đến bạn</p>
-                    </div>
-                    <Switch
-                      checked={notifications.mentionNotifications}
-                      onCheckedChange={(checked) =>
-                        setNotifications((prev) => ({ ...prev, mentionNotifications: checked }))
-                      }
-                    />
-                  </div>
-                </div>
-
-                <Button
-                  onClick={handleSaveNotifications}
-                  disabled={loading}
-                  className="bg-educonnect-primary hover:bg-educonnect-primary/90"
-                >
-                  <Save className="mr-2 h-4 w-4" />
-                  {loading ? "Đang lưu..." : "Lưu thay đổi"}
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="privacy" className="space-y-6">
-            <Card className="border-none shadow-none">
-              <CardHeader className="px-0">
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  Cài đặt riêng tư
-                </CardTitle>
-                <CardDescription>Kiểm soát ai có thể xem thông tin của bạn</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4 px-0">
-                {privacyLoading ? (
-                  <div className="space-y-4">
-                    <div className="animate-pulse">
-                      <div className="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
-                      <div className="h-10 bg-gray-200 rounded"></div>
-                    </div>
-                    <div className="animate-pulse">
-                      <div className="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
-                      <div className="h-6 bg-gray-200 rounded w-12"></div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Hiển thị hồ sơ</Label>
-                      <Select
-                        value={privacy.profileVisibility}
-                        onValueChange={(value) => setPrivacy((prev) => ({ ...prev, profileVisibility: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="public">Công khai</SelectItem>
-                          <SelectItem value="private">Riêng tư</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <Label>Hiển thị hoạt động</Label>
-                        <p className="text-sm text-muted-foreground">Cho phép người khác xem hoạt động của bạn</p>
-                      </div>
-                      <Switch
-                        checked={privacy.isOnline}
-                        onCheckedChange={(checked) => setPrivacy((prev) => ({ ...prev, isOnline: checked }))}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <Button
-                  onClick={handleSavePrivacy}
-                  disabled={loading || privacyLoading}
-                  className="bg-educonnect-primary hover:bg-educonnect-primary/90"
-                >
-                  <Save className="mr-2 h-4 w-4" />
-                  {loading ? "Đang lưu..." : "Lưu thay đổi"}
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
           <TabsContent value="account" className="space-y-6">
-            <Card>
-              <CardHeader>
+            <Card className="border-none shadow-none">
+              <CardHeader className="px-0 pt-0">
                 <CardTitle className="flex items-center gap-2">
                   <Lock className="h-5 w-5" />
                   Bảo mật tài khoản
                 </CardTitle>
-                <CardDescription>Quản lý mật khẩu và bảo mật tài khoản</CardDescription>
+                <CardDescription>Quản lý mật khẩu của bạn</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <Button variant="outline" className="w-full justify-start bg-transparent">
-                    <Lock className="mr-2 h-4 w-4" />
-                    Thay đổi mật khẩu
-                  </Button>
-
-                  <Button variant="outline" className="w-full justify-start bg-transparent">
-                    <Shield className="mr-2 h-4 w-4" />
-                    Xác thực hai yếu tố
-                  </Button>
-
-                  <Button variant="outline" className="w-full justify-start bg-transparent">
-                    <Globe className="mr-2 h-4 w-4" />
-                    Phiên đăng nhập
-                  </Button>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-4">
-                  <h4 className="font-medium text-destructive">Vùng nguy hiểm</h4>
-                  <Button variant="destructive" className="w-full">
-                    Xóa tài khoản
-                  </Button>
-                </div>
+              <CardContent className="space-y-6 px-0">
+                <Form {...passwordForm}>
+                  <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4 max-w-md">
+                    <FormField
+                      control={passwordForm.control}
+                      name="oldPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Mật khẩu hiện tại</FormLabel>
+                          <FormControl>
+                            <Input type="password" {...field} disabled={isChangingPassword} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={passwordForm.control}
+                      name="newPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Mật khẩu mới</FormLabel>
+                          <FormControl>
+                            <Input type="password" {...field} disabled={isChangingPassword} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={passwordForm.control}
+                      name="confirmPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Xác nhận mật khẩu mới</FormLabel>
+                          <FormControl>
+                            <Input type="password" {...field} disabled={isChangingPassword} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button type="submit" disabled={isChangingPassword} className="bg-educonnect-primary">
+                      {isChangingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Đổi mật khẩu
+                    </Button>
+                  </form>
+                </Form>
               </CardContent>
             </Card>
           </TabsContent>
