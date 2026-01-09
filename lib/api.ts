@@ -1452,7 +1452,7 @@ export const api = {
         tags: apiGroup.tags, // Keep original format
         isPrivate: false,
         userRole: null,
-        joinStatus: "not-joined",
+        joinStatus: apiGroup.isJoined ? "joined" : "not-joined",
       }
 
       return group
@@ -1673,6 +1673,81 @@ export const api = {
     const data = await res.json()
     if (!res.ok) {
       throw new Error(data.message || "Không thể kick thành viên khỏi nhóm")
+    }
+  },
+
+  async getBannedMembers(groupId: string): Promise<User[]> {
+    try {
+      const token = tokenManager.getToken()
+      const res = await fetch(`${API_BASE}/group-members/${groupId}/banned`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      })
+
+      if (!res.ok) {
+        return []
+      }
+
+      const data = await res.json()
+      if (!data.success || !Array.isArray(data.data)) return []
+
+      return data.data.map((u: any) => ({
+        id: u.id,
+        username: u.username,
+        email: "",
+        displayName: u.displayName || u.displayname || u.username,
+        avatar: u.avatar ?? null,
+        bio: u.bio ?? "",
+        points: u.points ?? 0,
+        level: u.level ?? 1,
+        badges: [],
+        followers: u.followersCount || 0,
+        following: u.followingCount || 0,
+        followersCount: u.followersCount || 0,
+        followingCount: u.followingCount || 0,
+        joinedAt: new Date(),
+        isOnline: u.isOnline ?? false,
+        profileVisibility: u.profileVisibility,
+        isFollowing: u.isFollowing ?? false,
+      }))
+    } catch (error) {
+      console.error("Error fetching banned members:", error)
+      return []
+    }
+  },
+
+  async banGroupMember(groupId: string, userId: string): Promise<void> {
+    const token = tokenManager.getToken()
+    const res = await fetch(`${API_BASE}/group-members/${groupId}/members/${userId}/ban`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error(data.message || "Không thể ban thành viên")
+    }
+  },
+
+  async unbanGroupMember(groupId: string, userId: string): Promise<void> {
+    const token = tokenManager.getToken()
+    const res = await fetch(`${API_BASE}/group-members/${groupId}/members/${userId}/unban`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error(data.message || "Không thể unban thành viên")
     }
   },
 

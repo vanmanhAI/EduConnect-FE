@@ -30,23 +30,34 @@ interface UserCardProps {
   showFollowButton?: boolean
   isGroupOwner?: boolean
   groupId?: string
+  isBanned?: boolean
   onMemberKicked?: () => void
   onMemberLeft?: () => void
+  onMemberBanned?: () => void
+  onMemberUnbanned?: () => void
 }
 
 export function UserCard({
   user,
   showFollowButton = true,
   isGroupOwner = false,
+
   groupId,
+  isBanned = false,
   onMemberKicked,
   onMemberLeft,
+  onMemberBanned,
+  onMemberUnbanned,
 }: UserCardProps) {
   const [isFollowing, setIsFollowing] = useState(user.isFollowing || false)
   const [followerCount, setFollowerCount] = useState(user.followers || user.followersCount || 0)
   const [loading, setLoading] = useState(false)
   const [isKickDialogOpen, setIsKickDialogOpen] = useState(false)
   const [isKicking, setIsKicking] = useState(false)
+  const [isBanDialogOpen, setIsBanDialogOpen] = useState(false)
+  const [isBanning, setIsBanning] = useState(false)
+  const [isUnbanDialogOpen, setIsUnbanDialogOpen] = useState(false)
+  const [isUnbanning, setIsUnbanning] = useState(false)
   const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false)
   const [isLeaving, setIsLeaving] = useState(false)
 
@@ -96,6 +107,38 @@ export function UserCard({
       }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleBanMember = async () => {
+    if (!groupId || isBanning) return
+
+    setIsBanning(true)
+    try {
+      await api.banGroupMember(groupId, user.id)
+      setIsBanDialogOpen(false)
+      onMemberBanned?.()
+    } catch (error: any) {
+      console.error("Failed to ban member:", error)
+      alert(error.message || "Không thể ban thành viên")
+    } finally {
+      setIsBanning(false)
+    }
+  }
+
+  const handleUnbanMember = async () => {
+    if (!groupId || isUnbanning) return
+
+    setIsUnbanning(true)
+    try {
+      await api.unbanGroupMember(groupId, user.id)
+      setIsUnbanDialogOpen(false)
+      onMemberUnbanned?.()
+    } catch (error: any) {
+      console.error("Failed to unban member:", error)
+      alert(error.message || "Không thể unban thành viên")
+    } finally {
+      setIsUnbanning(false)
     }
   }
 
@@ -198,15 +241,36 @@ export function UserCard({
                         Rời nhóm
                       </DropdownMenuItem>
                     ) : (
-                      // Show "Kick" option for group owner (only if not current user)
+                      // Show "Kick" and "Ban" option for group owner (only if not current user)
                       isGroupOwner && (
-                        <DropdownMenuItem
-                          onClick={() => setIsKickDialogOpen(true)}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <UserMinus className="mr-2 h-4 w-4" />
-                          Kick khỏi nhóm
-                        </DropdownMenuItem>
+                        <>
+                          {isBanned ? (
+                            <DropdownMenuItem
+                              onClick={() => setIsUnbanDialogOpen(true)}
+                              className="text-primary focus:text-primary"
+                            >
+                              <UserCheck className="mr-2 h-4 w-4" />
+                              Gỡ cấm
+                            </DropdownMenuItem>
+                          ) : (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => setIsKickDialogOpen(true)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <UserMinus className="mr-2 h-4 w-4" />
+                                Kick khỏi nhóm
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => setIsBanDialogOpen(true)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <LogOut className="mr-2 h-4 w-4" />
+                                Ban thành viên
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </>
                       )
                     )}
                   </DropdownMenuContent>
@@ -288,6 +352,52 @@ export function UserCard({
         title="Đăng nhập để theo dõi"
         description="Bạn cần đăng nhập để theo dõi người dùng này."
       />
+
+      {/* Ban Confirmation Dialog */}
+      <AlertDialog open={isBanDialogOpen} onOpenChange={setIsBanDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ban thành viên khỏi nhóm?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc chắn muốn cấm <strong>{user.displayName || user.username}</strong> khỏi nhóm? Thành viên này
+              sẽ bị loại khỏi nhóm và không thể tham gia lại cho đến khi được gỡ cấm.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBanning}>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBanMember}
+              disabled={isBanning}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {isBanning ? "Đang xử lý..." : "Cấm thành viên"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Unban Confirmation Dialog */}
+      <AlertDialog open={isUnbanDialogOpen} onOpenChange={setIsUnbanDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Gỡ cấm thành viên?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc chắn muốn gỡ cấm cho <strong>{user.displayName || user.username}</strong>? Người này sẽ có thể
+              tham gia lại nhóm.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isUnbanning}>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleUnbanMember}
+              disabled={isUnbanning}
+              className="bg-primary hover:bg-primary/90"
+            >
+              {isUnbanning ? "Đang xử lý..." : "Gỡ cấm"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

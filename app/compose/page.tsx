@@ -18,6 +18,7 @@ import { useFileUpload } from "@/hooks/use-file-upload"
 import type { Group } from "@/types"
 
 import { AuthGuard } from "@/components/auth/auth-guard"
+import { useAuth } from "@/contexts/auth-context"
 
 const DRAFT_TITLE = "educonnect_draft_title"
 const DRAFT_CONTENT = "educonnect_draft_content"
@@ -33,6 +34,7 @@ export default function ComposePage() {
 
 function ComposePageContent() {
   const { toast } = useToast()
+  const { user } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
   const groupId = searchParams.get("group")
@@ -122,7 +124,11 @@ function ComposePageContent() {
       })
 
       if (publish) {
-        router.push("/profile")
+        if (user?.id) {
+          router.push(`/profile/${user.id}`)
+        } else {
+          router.push("/profile")
+        }
       }
     } catch (error: any) {
       console.error("Failed to save post:", error)
