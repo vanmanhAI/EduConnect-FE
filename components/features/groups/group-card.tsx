@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, memo, useCallback } from "react"
+import { useState, useCallback, useEffect, memo } from "react"
 import Link from "next/link"
 import { Users, Lock, Check, Clock } from "lucide-react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
@@ -27,6 +27,14 @@ function GroupCardComponent({ group }: GroupCardProps) {
   const [coverImageError, setCoverImageError] = useState(false)
   const [avatarImageError, setAvatarImageError] = useState(false)
   const [showLoginPrompt, setShowLoginPrompt] = useState(false)
+
+  // Sync state with props when they change
+  useEffect(() => {
+    if (group.joinStatus) {
+      setJoinStatus(group.joinStatus)
+    }
+    setMemberCount(group.memberCount)
+  }, [group.joinStatus, group.memberCount])
 
   const handleJoinToggle = useCallback(async () => {
     if (!user) {

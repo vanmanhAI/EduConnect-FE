@@ -61,6 +61,7 @@ export default function GroupDetailPage() {
   const [group, setGroup] = useState<Group | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [members, setMembers] = useState<User[]>([])
+  const [bannedMembers, setBannedMembers] = useState<User[]>([])
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -69,6 +70,7 @@ export default function GroupDetailPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isLoadingMembers, setIsLoadingMembers] = useState(false)
+  const [isLoadingBannedMembers, setIsLoadingBannedMembers] = useState(false)
   const [postsPage, setPostsPage] = useState(1)
   const [postsHasMore, setPostsHasMore] = useState(false)
   const [postsLoadingMore, setPostsLoadingMore] = useState(false)
@@ -180,6 +182,23 @@ export default function GroupDetailPage() {
     loadMembers()
   }, [group, activeTab, canViewMembers])
 
+  // Load banned members when Banned tab is selected and allowed
+  useEffect(() => {
+    const loadBannedMembers = async () => {
+      if (!group || activeTab !== "banned" || !isOwner) return
+      try {
+        setIsLoadingBannedMembers(true)
+        const backendBannedMembers = await api.getBannedMembers(group.id)
+        setBannedMembers(backendBannedMembers || [])
+      } catch (e) {
+        console.error("Failed to load banned members:", e)
+      } finally {
+        setIsLoadingBannedMembers(false)
+      }
+    }
+    loadBannedMembers()
+  }, [group, activeTab, isOwner])
+
   // Reload members after kicking
   const handleMemberKicked = async () => {
     if (!group) return
@@ -205,6 +224,43 @@ export default function GroupDetailPage() {
     })
     // Redirect to groups page after leaving
     router.push("/groups")
+  }
+
+  // Handle member banned (reload banned members)
+  const handleMemberBanned = async () => {
+    if (!group) return
+    await handleReloadMembers()
+    // Optionally switch to banned tab or just show toast
+    toast({
+      title: "Đã cấm thành viên",
+      description: "Thành viên đã bị cấm khỏi nhóm",
+    })
+  }
+
+  // Handle member unbanned
+  const handleMemberUnbanned = async () => {
+    if (!group) return
+    try {
+      const backendBannedMembers = await api.getBannedMembers(group.id)
+      setBannedMembers(backendBannedMembers || [])
+      toast({
+        title: "Đã gỡ cấm",
+        description: "Thành viên đã được gỡ cấm",
+      })
+    } catch (error) {
+      console.error("Failed to reload banned members:", error)
+    }
+  }
+
+  // Helper to reload members list
+  const handleReloadMembers = async () => {
+    if (!group) return
+    try {
+      const backendMembers = await api.getGroupMembers(group.id)
+      setMembers(backendMembers || [])
+    } catch (error) {
+      console.error("Failed to reload members:", error)
+    }
   }
 
   const handleJoinToggle = async () => {
@@ -584,10 +640,11 @@ export default function GroupDetailPage() {
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full max-w-md grid-cols-3">
+            <TabsList className={`grid w-full max-w-md ${isOwner ? "grid-cols-4" : "grid-cols-3"}`}>
               <TabsTrigger value="posts">Bài viết</TabsTrigger>
               <TabsTrigger value="members">Thành viên</TabsTrigger>
               <TabsTrigger value="files">Tệp tin</TabsTrigger>
+              {isOwner && <TabsTrigger value="banned">Banned</TabsTrigger>}
             </TabsList>
 
             <TabsContent value="posts" className="space-y-6 mt-6">
@@ -666,12 +723,41 @@ export default function GroupDetailPage() {
                       isGroupOwner={isOwner}
                       groupId={group?.id}
                       onMemberKicked={handleMemberKicked}
+                      onMemberBanned={handleMemberBanned}
                       onMemberLeft={handleMemberLeft}
                     />
                   ))}
                 </div>
               )}
             </TabsContent>
+
+            {isOwner && (
+              <TabsContent value="banned" className="space-y-6 mt-6">
+                {isLoadingBannedMembers ? (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {Array.from({ length: 4 }).map((_, idx) => (
+                      <div key={idx} className="h-40 bg-muted/50 rounded-lg animate-pulse" />
+                    ))}
+                  </div>
+                ) : bannedMembers.length === 0 ? (
+                  <EmptyState title="Danh sách trống" description="Chưa có thành viên nào bị cấm." />
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {bannedMembers.map((member) => (
+                      <UserCard
+                        key={member.id}
+                        user={member}
+                        showFollowButton={false}
+                        isGroupOwner={isOwner}
+                        groupId={group?.id}
+                        isBanned={true}
+                        onMemberUnbanned={handleMemberUnbanned}
+                      />
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+            )}
 
             <TabsContent value="files" className="space-y-6 mt-6">
               <GroupFilesTab groupId={group.id} />
